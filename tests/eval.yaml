@@ -1,0 +1,69 @@
+# Evaluation Configuration
+
+# Test runner settings
+runner:
+  timeout: 30  # seconds per test
+  retries: 2
+
+# Test categories
+categories:
+  - name: workspace_validation
+    description: Tests for workspace and knowledge base validation
+    tests:
+      - test_valid_tilelang_repo
+      - test_missing_knowledge
+      - test_not_tilelang_repo
+
+  - name: device_normalization
+    description: Tests for device profile normalization
+    tests:
+      - test_nvidia_h100
+      - test_amd_mi300x
+      - test_unknown_device
+
+  - name: search
+    description: Tests for capability, pattern, and API search
+    tests:
+      - test_gemM_capability_search
+      - test_pattern_category_filter
+      - test_api_lookup
+
+  - name: end_to_end
+    description: Full workflow tests
+    tests:
+      - test_basic_gemM_workflow
+      - test_failure_recovery
+
+# Expected behaviors
+behaviors:
+  hard_stop:
+    description: "Skill must stop immediately on validation failure"
+    conditions:
+      - workspace_not_tilelang
+      - knowledge_base_missing
+      - parse_error
+      - missing_required_files
+
+  conservative_device:
+    description: "Skill must be conservative with hardware-specific features"
+    features:
+      - wgmma
+      - tcgen05
+      - tma
+      - cp_async
+      - mfma
+      - lds
+      - tmem
+      - cluster_dims
+      - is_cpu
+
+  retrieval_trace:
+    description: "Skill must output retrieval trace before code generation"
+    required_fields:
+      - workspace_status
+      - device_profile
+      - capability_id
+      - pattern_id
+      - usage_id
+      - api_symbols
+      - confidence

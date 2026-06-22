@@ -1,0 +1,69 @@
+{
+  "repo_name": "tilelang",
+  "analyzed_at": "2026-04-24T02:40:21.723198+00:00",
+  "source_roots": [
+    "tilelang",
+    "src",
+    "examples",
+    "testing",
+    "benchmark",
+    "docs"
+  ],
+  "key_directories": [
+    "tilelang/language",
+    "tilelang/jit",
+    "tilelang/engine",
+    "tilelang/layout",
+    "tilelang/tileop",
+    "tilelang/transform",
+    "tilelang/profiler",
+    "tilelang/autotuner",
+    "examples/gemm",
+    "examples/flash_attention",
+    "examples/convolution",
+    "examples/elementwise",
+    "examples/online_softmax",
+    "examples/topk",
+    "benchmark/matmul",
+    "testing/python/language",
+    "testing/python/kernel",
+    "testing/python/transform",
+    "docs/programming_guides",
+    "docs/deeplearning_operators"
+  ],
+  "total_python_files": 709,
+  "output_files": [
+    "implementation_plan.md",
+    "README.md",
+    "manifest.json",
+    "retrieval_plan.md",
+    "capability_map.json",
+    "apis.jsonl",
+    "patterns.jsonl",
+    "usage_patterns.jsonl",
+    "semantic_graph.json",
+    "semantic_graph.mmd",
+    "source_chunks.jsonl"
+  ],
+  "notes": [
+    "Generated from current workspace only.",
+    "Records prioritize operator-development retrieval over exhaustive whole-repository indexing.",
+    "Confidence is lower where claims are inferred from examples/tests or pass names rather than direct documentation.",
+    "Device adaptation fields added to capability_map.json, patterns.jsonl, usage_patterns.jsonl, and source_chunks.jsonl.",
+    "Device support is evidence-backed where possible; Metal/WebGPU and some advanced architecture-specific paths remain lower confidence until validated on target hardware."
+  ],
+  "device_integration": {
+    "schema_version": "device-adaptation-v1",
+    "primary_fields": {
+      "capability_map.json": "device_adaptation",
+      "patterns.jsonl": "device_strategy",
+      "usage_patterns.jsonl": "device_execution_notes",
+      "source_chunks.jsonl": "device_notes"
+    },
+    "expected_user_input": [
+      "vendor",
+      "model",
+      "optional_arch_or_target_string"
+    ]
+  }
+}

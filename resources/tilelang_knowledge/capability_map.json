@@ -1,0 +1,3153 @@
+{
+  "schema_version": "1.0",
+  "retrieval_role": "first-layer high-level operator capability routing",
+  "capabilities": [
+    {
+      "capability_id": "kernel_construction",
+      "summary": "Build TileLang kernels with @tilelang.jit, @T.prim_func tensor annotations, and T.Kernel launch scopes.",
+      "primary_symbols": [
+        "tilelang.jit",
+        "tilelang.compile",
+        "T.prim_func",
+        "T.Tensor",
+        "T.Kernel",
+        "T.CUDASourceCodeKernel"
+      ],
+      "related_modules": [
+        "tilelang/jit/__init__.py",
+        "tilelang/language/kernel.py",
+        "tilelang/language/proxy.py"
+      ],
+      "related_patterns": [
+        "pattern.gemm.basic_tiled",
+        "pattern.elementwise.parallel_tile",
+        "pattern.dynamic_shape.symbolic_gemm"
+      ],
+      "when_to_use": "Start every new operator here to decide lazy/eager style, output handling, grid dimensions, thread dimensions, and target.",
+      "common_pitfalls": [
+        "T.Kernel requires a Builder inside @tilelang.jit/@T.prim_func.",
+        "out_idx is lazy-mode only.",
+        "Threads default to 128 for GPU unless is_cpu=True."
+      ],
+      "confidence": 0.96,
+      "evidence": [
+        {
+          "file_path": "tilelang/jit/__init__.py",
+          "line": 480,
+          "kind": "source"
+        },
+        {
+          "file_path": "tilelang/language/kernel.py",
+          "line": 266,
+          "kind": "source"
+        }
+      ],
+      "device_adaptation": {
+        "schema": {
+          "field_version": "device-adaptation-v1",
+          "expected_user_device_input": {
+            "vendor": "required, e.g. NVIDIA/AMD/Intel/Apple/CPU/other",
+            "model": "required when available, e.g. A100/H100/B100/MI300X/MI350/M2/EPYC",
+            "optional_arch": "CUDA sm_XX, AMD gfxXXX, LLVM mcpu, or TVM target tag"
+          },
+          "target_selection_order": [
+            "Use exact model/arch when supplied, e.g. cuda -arch=sm_90 or hip -mcpu=gfx950.",
+            "If only vendor is supplied, choose documented base target: cuda, hip, metal, llvm/c, or webgpu.",
+            "If no device is supplied, keep target auto but avoid architecture-specific intrinsics in generated code."
+          ],
+          "canonical_targets": {
+            "nvidia_cuda": [
+              "cuda",
+              "cuda -arch=sm_80",
+              "cuda -arch=sm_90",
+              "cuda -arch=sm_100a",
+              "cutedsl"
+            ],
+            "amd_hip": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "cpu": [
+              "llvm",
+              "c"
+            ],
+            "apple_metal": [
+              "metal"
+            ],
+            "webgpu": [
+              "webgpu"
+            ]
+          },
+          "evidence": [
+            {
+              "file_path": "docs/get_started/targets.md",
+              "line": 11,
+              "note": "target table and examples"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cuda.py",
+              "line": 18,
+              "note": "CUDA arch classification"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cdna.py",
+              "line": 7,
+              "note": "CDNA/gfx950 LDS information"
+            },
+            {
+              "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+              "line": 1,
+              "note": "CPU GEMM scalar path tests"
+            }
+          ]
+        },
+        "vendor_notes": {
+          "nvidia_cuda": {
+            "applicability": "Primary GPU path for most examples and advanced tensor-core features.",
+            "target_examples": [
+              "cuda",
+              "cuda -arch=sm_80 for A100/A30",
+              "cuda -arch=sm_89 for RTX 4090/Ada",
+              "cuda -arch=sm_90 for H100/Hopper",
+              "cuda -arch=sm_100a for B100/Blackwell where supported"
+            ],
+            "optimization_notes": [
+              "Use tensor-core GEMM for fp16/bf16/int8/int4 where the architecture supports it.",
+              "Ampere-class sm_80+ has MMA support in carver arch helpers.",
+              "Hopper sm_90 enables WGMMA/TMA-related paths; explicit WGMMA requires manual waits.",
+              "Blackwell sm100/sm100a paths may use TCGEN05/TMEM/2CTA features; require matching target and cluster settings.",
+              "Use T.Pipelined and shared-memory staging for GEMM/attention memory-compute overlap."
+            ],
+            "limits": [
+              "Architecture-specific intrinsics can fail compilation if the target does not support them.",
+              "Runtime tensors must be on the same CUDA device as the compiled kernel."
+            ],
+            "confidence": 0.9,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 17
+              },
+              {
+                "file_path": "tilelang/carver/arch/cuda.py",
+                "line": 18
+              },
+              {
+                "file_path": "testing/python/language/test_tilelang_language_wgmma_gemm.py",
+                "line": 24
+              },
+              {
+                "file_path": "src/transform/lower_blackwell_2sm.cc",
+                "line": 2
+              }
+            ]
+          },
+          "amd_hip": {
+            "applicability": "ROCm/HIP target path for AMD GPUs; examples under examples/amd and CDNA architecture helpers indicate supported tuning context.",
+            "target_examples": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "optimization_notes": [
+              "Prefer HIP target and CDNA-aware tile sizes when running on AMD accelerators.",
+              "Account for LDS/shared memory capacity; gfx950 has a 160KB LDS override in arch helpers.",
+              "T.gemm exposes k_pack noted as ROCm-specific in gemm_op.py.",
+              "Avoid CUDA-only WGMMA/TCGEN/TMA assumptions unless a HIP lowering path is explicitly present."
+            ],
+            "limits": [
+              "Some examples and advanced intrinsics are NVIDIA-specific.",
+              "Device model to exact gfx target should be supplied by user or runtime tooling."
+            ],
+            "confidence": 0.78,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 19
+              },
+              {
+                "file_path": "tilelang/carver/arch/cdna.py",
+                "line": 7
+              },
+              {
+                "file_path": "tilelang/language/gemm_op.py",
+                "line": 157
+              },
+              {
+                "file_path": "examples/amd/example_amd_flash_attn_fwd.py",
+                "line": 1
+              }
+            ]
+          },
+          "cpu": {
+            "applicability": "CPU/LLVM/C path for validation, scalar codegen, or non-GPU execution.",
+            "target_examples": [
+              "llvm",
+              "c"
+            ],
+            "optimization_notes": [
+              "Use T.Kernel(..., is_cpu=True) for CPU kernel frames.",
+              "Do not rely on GPU thread bindings, shared memory semantics, cp.async, WGMMA, TMA, or tensor-core paths.",
+              "Useful for correctness/codegen checks; performance strategy differs from GPU tiling."
+            ],
+            "limits": [
+              "Many GPU-optimized examples assume CUDA tensors and are not directly portable.",
+              "CPU arch helper intentionally stores minimal detail."
+            ],
+            "confidence": 0.82,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+                "line": 1
+              },
+              {
+                "file_path": "tilelang/carver/arch/cpu.py",
+                "line": 8
+              }
+            ]
+          },
+          "apple_metal_webgpu": {
+            "applicability": "Documented targets for Apple Metal and WebGPU/browser runtimes; suitable only for patterns avoiding CUDA/HIP-specific intrinsics unless tests show support.",
+            "target_examples": [
+              "metal",
+              "webgpu"
+            ],
+            "optimization_notes": [
+              "Favor generic T.Kernel/T.Parallel/T.copy style and avoid tensor-core-specific or CUDA barrier APIs.",
+              "Treat memory scope and vectorization assumptions as target-specific until validated."
+            ],
+            "limits": [
+              "The current operator-development examples are much richer for CUDA/HIP than Metal/WebGPU.",
+              "Advanced GEMM/attention tensor-core patterns have low confidence on these targets."
+            ],
+            "confidence": 0.55,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/metal/test_metal_codegen.py",
+                "line": 1
+              },
+              {
+                "file_path": "testing/python/webgpu/test_webgpu_codegen.py",
+                "line": 1
+              }
+            ]
+          }
+        },
+        "model_resolution_required": true,
+        "confidence": 0.75,
+        "limitations": [
+          "Use user-provided vendor/model to refine target and available intrinsics before generating final operator code."
+        ],
+        "optimization_decision_points": [
+          "Select @tilelang.jit(target=...) or tilelang.compile(target=...) from vendor/model.",
+          "Use target auto only for portable examples; use exact arch for tuned kernels.",
+          "CPU target should use is_cpu=True where examples indicate CPU kernel frames."
+        ]
+      }
+    },
+    {
+      "capability_id": "memory_movement",
+      "summary": "Move and stage tiles among global, shared, local, fragment, TMA, and async copy paths.",
+      "primary_symbols": [
+        "T.copy",
+        "T.async_copy",
+        "T.tma_copy",
+        "T.transpose",
+        "T.alloc_shared",
+        "T.alloc_fragment",
+        "T.alloc_barrier"
+      ],
+      "related_modules": [
+        "tilelang/language/copy_op.py",
+        "tilelang/language/allocate.py",
+        "src/transform/lower_ptx_async_copy.cc",
+        "src/tl_templates/cuda/copy.h",
+        "src/tl_templates/hip/copy.h"
+      ],
+      "related_patterns": [
+        "pattern.gemm.basic_tiled",
+        "pattern.attention.flash_mha_forward",
+        "pattern.elementwise.parallel_tile"
+      ],
+      "when_to_use": "Use when an operator needs global-to-shared staging, fragment stores, async cp.async, TMA, or shared transposes.",
+      "common_pitfalls": [
+        "copy extents must be deducible.",
+        "T.async_copy has explicit synchronization responsibility.",
+        "T.tma_copy loads require barriers.",
+        "T.copy broadcasting support is intentionally limited."
+      ],
+      "confidence": 0.94,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/copy_op.py",
+          "line": 51,
+          "kind": "source"
+        },
+        {
+          "file_path": "tilelang/language/copy_op.py",
+          "line": 123,
+          "kind": "source"
+        },
+        {
+          "file_path": "tilelang/language/copy_op.py",
+          "line": 167,
+          "kind": "source"
+        }
+      ],
+      "device_adaptation": {
+        "schema": {
+          "field_version": "device-adaptation-v1",
+          "expected_user_device_input": {
+            "vendor": "required, e.g. NVIDIA/AMD/Intel/Apple/CPU/other",
+            "model": "required when available, e.g. A100/H100/B100/MI300X/MI350/M2/EPYC",
+            "optional_arch": "CUDA sm_XX, AMD gfxXXX, LLVM mcpu, or TVM target tag"
+          },
+          "target_selection_order": [
+            "Use exact model/arch when supplied, e.g. cuda -arch=sm_90 or hip -mcpu=gfx950.",
+            "If only vendor is supplied, choose documented base target: cuda, hip, metal, llvm/c, or webgpu.",
+            "If no device is supplied, keep target auto but avoid architecture-specific intrinsics in generated code."
+          ],
+          "canonical_targets": {
+            "nvidia_cuda": [
+              "cuda",
+              "cuda -arch=sm_80",
+              "cuda -arch=sm_90",
+              "cuda -arch=sm_100a",
+              "cutedsl"
+            ],
+            "amd_hip": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "cpu": [
+              "llvm",
+              "c"
+            ],
+            "apple_metal": [
+              "metal"
+            ],
+            "webgpu": [
+              "webgpu"
+            ]
+          },
+          "evidence": [
+            {
+              "file_path": "docs/get_started/targets.md",
+              "line": 11,
+              "note": "target table and examples"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cuda.py",
+              "line": 18,
+              "note": "CUDA arch classification"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cdna.py",
+              "line": 7,
+              "note": "CDNA/gfx950 LDS information"
+            },
+            {
+              "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+              "line": 1,
+              "note": "CPU GEMM scalar path tests"
+            }
+          ]
+        },
+        "vendor_notes": {
+          "nvidia_cuda": {
+            "applicability": "Primary GPU path for most examples and advanced tensor-core features.",
+            "target_examples": [
+              "cuda",
+              "cuda -arch=sm_80 for A100/A30",
+              "cuda -arch=sm_89 for RTX 4090/Ada",
+              "cuda -arch=sm_90 for H100/Hopper",
+              "cuda -arch=sm_100a for B100/Blackwell where supported"
+            ],
+            "optimization_notes": [
+              "Use tensor-core GEMM for fp16/bf16/int8/int4 where the architecture supports it.",
+              "Ampere-class sm_80+ has MMA support in carver arch helpers.",
+              "Hopper sm_90 enables WGMMA/TMA-related paths; explicit WGMMA requires manual waits.",
+              "Blackwell sm100/sm100a paths may use TCGEN05/TMEM/2CTA features; require matching target and cluster settings.",
+              "Use T.Pipelined and shared-memory staging for GEMM/attention memory-compute overlap."
+            ],
+            "limits": [
+              "Architecture-specific intrinsics can fail compilation if the target does not support them.",
+              "Runtime tensors must be on the same CUDA device as the compiled kernel."
+            ],
+            "confidence": 0.9,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 17
+              },
+              {
+                "file_path": "tilelang/carver/arch/cuda.py",
+                "line": 18
+              },
+              {
+                "file_path": "testing/python/language/test_tilelang_language_wgmma_gemm.py",
+                "line": 24
+              },
+              {
+                "file_path": "src/transform/lower_blackwell_2sm.cc",
+                "line": 2
+              }
+            ]
+          },
+          "amd_hip": {
+            "applicability": "ROCm/HIP target path for AMD GPUs; examples under examples/amd and CDNA architecture helpers indicate supported tuning context.",
+            "target_examples": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "optimization_notes": [
+              "Prefer HIP target and CDNA-aware tile sizes when running on AMD accelerators.",
+              "Account for LDS/shared memory capacity; gfx950 has a 160KB LDS override in arch helpers.",
+              "T.gemm exposes k_pack noted as ROCm-specific in gemm_op.py.",
+              "Avoid CUDA-only WGMMA/TCGEN/TMA assumptions unless a HIP lowering path is explicitly present."
+            ],
+            "limits": [
+              "Some examples and advanced intrinsics are NVIDIA-specific.",
+              "Device model to exact gfx target should be supplied by user or runtime tooling."
+            ],
+            "confidence": 0.78,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 19
+              },
+              {
+                "file_path": "tilelang/carver/arch/cdna.py",
+                "line": 7
+              },
+              {
+                "file_path": "tilelang/language/gemm_op.py",
+                "line": 157
+              },
+              {
+                "file_path": "examples/amd/example_amd_flash_attn_fwd.py",
+                "line": 1
+              }
+            ]
+          },
+          "cpu": {
+            "applicability": "CPU/LLVM/C path for validation, scalar codegen, or non-GPU execution.",
+            "target_examples": [
+              "llvm",
+              "c"
+            ],
+            "optimization_notes": [
+              "Use T.Kernel(..., is_cpu=True) for CPU kernel frames.",
+              "Do not rely on GPU thread bindings, shared memory semantics, cp.async, WGMMA, TMA, or tensor-core paths.",
+              "Useful for correctness/codegen checks; performance strategy differs from GPU tiling."
+            ],
+            "limits": [
+              "Many GPU-optimized examples assume CUDA tensors and are not directly portable.",
+              "CPU arch helper intentionally stores minimal detail."
+            ],
+            "confidence": 0.82,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+                "line": 1
+              },
+              {
+                "file_path": "tilelang/carver/arch/cpu.py",
+                "line": 8
+              }
+            ]
+          },
+          "apple_metal_webgpu": {
+            "applicability": "Documented targets for Apple Metal and WebGPU/browser runtimes; suitable only for patterns avoiding CUDA/HIP-specific intrinsics unless tests show support.",
+            "target_examples": [
+              "metal",
+              "webgpu"
+            ],
+            "optimization_notes": [
+              "Favor generic T.Kernel/T.Parallel/T.copy style and avoid tensor-core-specific or CUDA barrier APIs.",
+              "Treat memory scope and vectorization assumptions as target-specific until validated."
+            ],
+            "limits": [
+              "The current operator-development examples are much richer for CUDA/HIP than Metal/WebGPU.",
+              "Advanced GEMM/attention tensor-core patterns have low confidence on these targets."
+            ],
+            "confidence": 0.55,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/metal/test_metal_codegen.py",
+                "line": 1
+              },
+              {
+                "file_path": "testing/python/webgpu/test_webgpu_codegen.py",
+                "line": 1
+              }
+            ]
+          }
+        },
+        "model_resolution_required": true,
+        "confidence": 0.86,
+        "limitations": [
+          "Use user-provided vendor/model to refine target and available intrinsics before generating final operator code."
+        ],
+        "optimization_decision_points": [
+          "CUDA: T.copy may lower to SIMT, ldmatrix, TMA, or cp.async depending on target and hints; T.async_copy requires explicit wait.",
+          "Hopper/Blackwell: TMA and proxy-fence behavior can be target-sensitive.",
+          "AMD HIP: shared memory is LDS; use mcpu-specific capacity such as gfx950 160KB when sizing tiles.",
+          "CPU/Metal/WebGPU: avoid CUDA-only async copy/barrier assumptions."
+        ]
+      }
+    },
+    {
+      "capability_id": "tiling_and_schedule",
+      "summary": "Express block tiling, parallel loops, unroll/vectorize, persistent loops, and layout-aware parallel mapping.",
+      "primary_symbols": [
+        "T.Parallel",
+        "T.Pipelined",
+        "T.Persistent",
+        "T.serial",
+        "T.unroll",
+        "T.vectorized",
+        "T.use_swizzle",
+        "T.annotate_layout",
+        "T.annotate_min_blocks_per_sm"
+      ],
+      "related_modules": [
+        "tilelang/language/loop.py",
+        "tilelang/language/annotations.py",
+        "tilelang/layout/layout.py",
+        "tilelang/layout/fragment.py"
+      ],
+      "related_patterns": [
+        "pattern.gemm.basic_tiled",
+        "pattern.attention.flash_mha_forward",
+        "pattern.autotune.kernel_config_search"
+      ],
+      "when_to_use": "Use after choosing operator family to map work to CTAs, threads, pipeline stages, and layout annotations.",
+      "common_pitfalls": [
+        "Parallel loop layout must match nest depth.",
+        "num_stages=0 disables software pipeline.",
+        "Swizzle and occupancy annotations are hints, not correctness fixes."
+      ],
+      "confidence": 0.92,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/loop.py",
+          "line": 13,
+          "kind": "source"
+        },
+        {
+          "file_path": "tilelang/language/loop.py",
+          "line": 112,
+          "kind": "source"
+        }
+      ],
+      "device_adaptation": {
+        "schema": {
+          "field_version": "device-adaptation-v1",
+          "expected_user_device_input": {
+            "vendor": "required, e.g. NVIDIA/AMD/Intel/Apple/CPU/other",
+            "model": "required when available, e.g. A100/H100/B100/MI300X/MI350/M2/EPYC",
+            "optional_arch": "CUDA sm_XX, AMD gfxXXX, LLVM mcpu, or TVM target tag"
+          },
+          "target_selection_order": [
+            "Use exact model/arch when supplied, e.g. cuda -arch=sm_90 or hip -mcpu=gfx950.",
+            "If only vendor is supplied, choose documented base target: cuda, hip, metal, llvm/c, or webgpu.",
+            "If no device is supplied, keep target auto but avoid architecture-specific intrinsics in generated code."
+          ],
+          "canonical_targets": {
+            "nvidia_cuda": [
+              "cuda",
+              "cuda -arch=sm_80",
+              "cuda -arch=sm_90",
+              "cuda -arch=sm_100a",
+              "cutedsl"
+            ],
+            "amd_hip": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "cpu": [
+              "llvm",
+              "c"
+            ],
+            "apple_metal": [
+              "metal"
+            ],
+            "webgpu": [
+              "webgpu"
+            ]
+          },
+          "evidence": [
+            {
+              "file_path": "docs/get_started/targets.md",
+              "line": 11,
+              "note": "target table and examples"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cuda.py",
+              "line": 18,
+              "note": "CUDA arch classification"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cdna.py",
+              "line": 7,
+              "note": "CDNA/gfx950 LDS information"
+            },
+            {
+              "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+              "line": 1,
+              "note": "CPU GEMM scalar path tests"
+            }
+          ]
+        },
+        "vendor_notes": {
+          "nvidia_cuda": {
+            "applicability": "Primary GPU path for most examples and advanced tensor-core features.",
+            "target_examples": [
+              "cuda",
+              "cuda -arch=sm_80 for A100/A30",
+              "cuda -arch=sm_89 for RTX 4090/Ada",
+              "cuda -arch=sm_90 for H100/Hopper",
+              "cuda -arch=sm_100a for B100/Blackwell where supported"
+            ],
+            "optimization_notes": [
+              "Use tensor-core GEMM for fp16/bf16/int8/int4 where the architecture supports it.",
+              "Ampere-class sm_80+ has MMA support in carver arch helpers.",
+              "Hopper sm_90 enables WGMMA/TMA-related paths; explicit WGMMA requires manual waits.",
+              "Blackwell sm100/sm100a paths may use TCGEN05/TMEM/2CTA features; require matching target and cluster settings.",
+              "Use T.Pipelined and shared-memory staging for GEMM/attention memory-compute overlap."
+            ],
+            "limits": [
+              "Architecture-specific intrinsics can fail compilation if the target does not support them.",
+              "Runtime tensors must be on the same CUDA device as the compiled kernel."
+            ],
+            "confidence": 0.9,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 17
+              },
+              {
+                "file_path": "tilelang/carver/arch/cuda.py",
+                "line": 18
+              },
+              {
+                "file_path": "testing/python/language/test_tilelang_language_wgmma_gemm.py",
+                "line": 24
+              },
+              {
+                "file_path": "src/transform/lower_blackwell_2sm.cc",
+                "line": 2
+              }
+            ]
+          },
+          "amd_hip": {
+            "applicability": "ROCm/HIP target path for AMD GPUs; examples under examples/amd and CDNA architecture helpers indicate supported tuning context.",
+            "target_examples": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "optimization_notes": [
+              "Prefer HIP target and CDNA-aware tile sizes when running on AMD accelerators.",
+              "Account for LDS/shared memory capacity; gfx950 has a 160KB LDS override in arch helpers.",
+              "T.gemm exposes k_pack noted as ROCm-specific in gemm_op.py.",
+              "Avoid CUDA-only WGMMA/TCGEN/TMA assumptions unless a HIP lowering path is explicitly present."
+            ],
+            "limits": [
+              "Some examples and advanced intrinsics are NVIDIA-specific.",
+              "Device model to exact gfx target should be supplied by user or runtime tooling."
+            ],
+            "confidence": 0.78,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 19
+              },
+              {
+                "file_path": "tilelang/carver/arch/cdna.py",
+                "line": 7
+              },
+              {
+                "file_path": "tilelang/language/gemm_op.py",
+                "line": 157
+              },
+              {
+                "file_path": "examples/amd/example_amd_flash_attn_fwd.py",
+                "line": 1
+              }
+            ]
+          },
+          "cpu": {
+            "applicability": "CPU/LLVM/C path for validation, scalar codegen, or non-GPU execution.",
+            "target_examples": [
+              "llvm",
+              "c"
+            ],
+            "optimization_notes": [
+              "Use T.Kernel(..., is_cpu=True) for CPU kernel frames.",
+              "Do not rely on GPU thread bindings, shared memory semantics, cp.async, WGMMA, TMA, or tensor-core paths.",
+              "Useful for correctness/codegen checks; performance strategy differs from GPU tiling."
+            ],
+            "limits": [
+              "Many GPU-optimized examples assume CUDA tensors and are not directly portable.",
+              "CPU arch helper intentionally stores minimal detail."
+            ],
+            "confidence": 0.82,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+                "line": 1
+              },
+              {
+                "file_path": "tilelang/carver/arch/cpu.py",
+                "line": 8
+              }
+            ]
+          },
+          "apple_metal_webgpu": {
+            "applicability": "Documented targets for Apple Metal and WebGPU/browser runtimes; suitable only for patterns avoiding CUDA/HIP-specific intrinsics unless tests show support.",
+            "target_examples": [
+              "metal",
+              "webgpu"
+            ],
+            "optimization_notes": [
+              "Favor generic T.Kernel/T.Parallel/T.copy style and avoid tensor-core-specific or CUDA barrier APIs.",
+              "Treat memory scope and vectorization assumptions as target-specific until validated."
+            ],
+            "limits": [
+              "The current operator-development examples are much richer for CUDA/HIP than Metal/WebGPU.",
+              "Advanced GEMM/attention tensor-core patterns have low confidence on these targets."
+            ],
+            "confidence": 0.55,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/metal/test_metal_codegen.py",
+                "line": 1
+              },
+              {
+                "file_path": "testing/python/webgpu/test_webgpu_codegen.py",
+                "line": 1
+              }
+            ]
+          }
+        },
+        "model_resolution_required": true,
+        "confidence": 0.75,
+        "limitations": [
+          "Use user-provided vendor/model to refine target and available intrinsics before generating final operator code."
+        ],
+        "optimization_decision_points": [
+          "Tune block sizes, threads, num_stages, and layout annotations per device shared memory/register limits.",
+          "CUDA SM80+ favors tensor-core tile shapes; Hopper/Blackwell may prefer WGMMA/TCGEN-aware scheduling.",
+          "AMD CDNA should account for wave size/LDS and HIP target mcpu.",
+          "CPU target should prefer simpler loop structures and is_cpu=True."
+        ]
+      }
+    },
+    {
+      "capability_id": "pipelining",
+      "summary": "Overlap producer/consumer work with T.Pipelined and backend pipeline passes.",
+      "primary_symbols": [
+        "T.Pipelined",
+        "tl.transform.PipelinePlanning",
+        "tl.transform.InjectSoftwarePipeline",
+        "T.async_copy"
+      ],
+      "related_modules": [
+        "tilelang/language/loop.py",
+        "tilelang/transform/__init__.py",
+        "src/transform/pipeline_planning.cc",
+        "src/transform/inject_pipeline.cc"
+      ],
+      "related_patterns": [
+        "pattern.gemm.basic_tiled",
+        "pattern.attention.flash_mha_forward",
+        "pattern.conv.im2col_gemm"
+      ],
+      "when_to_use": "Use in K/reduction loops where copies and compute can be overlapped.",
+      "common_pitfalls": [
+        "Incorrect stage/order/sync annotations can break lowering.",
+        "num_stages should match buffering capacity and memory footprint."
+      ],
+      "confidence": 0.86,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/loop.py",
+          "line": 112,
+          "kind": "source"
+        },
+        {
+          "file_path": "tilelang/transform/__init__.py",
+          "line": 30,
+          "kind": "source"
+        }
+      ],
+      "device_adaptation": {
+        "schema": {
+          "field_version": "device-adaptation-v1",
+          "expected_user_device_input": {
+            "vendor": "required, e.g. NVIDIA/AMD/Intel/Apple/CPU/other",
+            "model": "required when available, e.g. A100/H100/B100/MI300X/MI350/M2/EPYC",
+            "optional_arch": "CUDA sm_XX, AMD gfxXXX, LLVM mcpu, or TVM target tag"
+          },
+          "target_selection_order": [
+            "Use exact model/arch when supplied, e.g. cuda -arch=sm_90 or hip -mcpu=gfx950.",
+            "If only vendor is supplied, choose documented base target: cuda, hip, metal, llvm/c, or webgpu.",
+            "If no device is supplied, keep target auto but avoid architecture-specific intrinsics in generated code."
+          ],
+          "canonical_targets": {
+            "nvidia_cuda": [
+              "cuda",
+              "cuda -arch=sm_80",
+              "cuda -arch=sm_90",
+              "cuda -arch=sm_100a",
+              "cutedsl"
+            ],
+            "amd_hip": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "cpu": [
+              "llvm",
+              "c"
+            ],
+            "apple_metal": [
+              "metal"
+            ],
+            "webgpu": [
+              "webgpu"
+            ]
+          },
+          "evidence": [
+            {
+              "file_path": "docs/get_started/targets.md",
+              "line": 11,
+              "note": "target table and examples"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cuda.py",
+              "line": 18,
+              "note": "CUDA arch classification"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cdna.py",
+              "line": 7,
+              "note": "CDNA/gfx950 LDS information"
+            },
+            {
+              "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+              "line": 1,
+              "note": "CPU GEMM scalar path tests"
+            }
+          ]
+        },
+        "vendor_notes": {
+          "nvidia_cuda": {
+            "applicability": "Primary GPU path for most examples and advanced tensor-core features.",
+            "target_examples": [
+              "cuda",
+              "cuda -arch=sm_80 for A100/A30",
+              "cuda -arch=sm_89 for RTX 4090/Ada",
+              "cuda -arch=sm_90 for H100/Hopper",
+              "cuda -arch=sm_100a for B100/Blackwell where supported"
+            ],
+            "optimization_notes": [
+              "Use tensor-core GEMM for fp16/bf16/int8/int4 where the architecture supports it.",
+              "Ampere-class sm_80+ has MMA support in carver arch helpers.",
+              "Hopper sm_90 enables WGMMA/TMA-related paths; explicit WGMMA requires manual waits.",
+              "Blackwell sm100/sm100a paths may use TCGEN05/TMEM/2CTA features; require matching target and cluster settings.",
+              "Use T.Pipelined and shared-memory staging for GEMM/attention memory-compute overlap."
+            ],
+            "limits": [
+              "Architecture-specific intrinsics can fail compilation if the target does not support them.",
+              "Runtime tensors must be on the same CUDA device as the compiled kernel."
+            ],
+            "confidence": 0.9,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 17
+              },
+              {
+                "file_path": "tilelang/carver/arch/cuda.py",
+                "line": 18
+              },
+              {
+                "file_path": "testing/python/language/test_tilelang_language_wgmma_gemm.py",
+                "line": 24
+              },
+              {
+                "file_path": "src/transform/lower_blackwell_2sm.cc",
+                "line": 2
+              }
+            ]
+          },
+          "amd_hip": {
+            "applicability": "ROCm/HIP target path for AMD GPUs; examples under examples/amd and CDNA architecture helpers indicate supported tuning context.",
+            "target_examples": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "optimization_notes": [
+              "Prefer HIP target and CDNA-aware tile sizes when running on AMD accelerators.",
+              "Account for LDS/shared memory capacity; gfx950 has a 160KB LDS override in arch helpers.",
+              "T.gemm exposes k_pack noted as ROCm-specific in gemm_op.py.",
+              "Avoid CUDA-only WGMMA/TCGEN/TMA assumptions unless a HIP lowering path is explicitly present."
+            ],
+            "limits": [
+              "Some examples and advanced intrinsics are NVIDIA-specific.",
+              "Device model to exact gfx target should be supplied by user or runtime tooling."
+            ],
+            "confidence": 0.78,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 19
+              },
+              {
+                "file_path": "tilelang/carver/arch/cdna.py",
+                "line": 7
+              },
+              {
+                "file_path": "tilelang/language/gemm_op.py",
+                "line": 157
+              },
+              {
+                "file_path": "examples/amd/example_amd_flash_attn_fwd.py",
+                "line": 1
+              }
+            ]
+          },
+          "cpu": {
+            "applicability": "CPU/LLVM/C path for validation, scalar codegen, or non-GPU execution.",
+            "target_examples": [
+              "llvm",
+              "c"
+            ],
+            "optimization_notes": [
+              "Use T.Kernel(..., is_cpu=True) for CPU kernel frames.",
+              "Do not rely on GPU thread bindings, shared memory semantics, cp.async, WGMMA, TMA, or tensor-core paths.",
+              "Useful for correctness/codegen checks; performance strategy differs from GPU tiling."
+            ],
+            "limits": [
+              "Many GPU-optimized examples assume CUDA tensors and are not directly portable.",
+              "CPU arch helper intentionally stores minimal detail."
+            ],
+            "confidence": 0.82,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+                "line": 1
+              },
+              {
+                "file_path": "tilelang/carver/arch/cpu.py",
+                "line": 8
+              }
+            ]
+          },
+          "apple_metal_webgpu": {
+            "applicability": "Documented targets for Apple Metal and WebGPU/browser runtimes; suitable only for patterns avoiding CUDA/HIP-specific intrinsics unless tests show support.",
+            "target_examples": [
+              "metal",
+              "webgpu"
+            ],
+            "optimization_notes": [
+              "Favor generic T.Kernel/T.Parallel/T.copy style and avoid tensor-core-specific or CUDA barrier APIs.",
+              "Treat memory scope and vectorization assumptions as target-specific until validated."
+            ],
+            "limits": [
+              "The current operator-development examples are much richer for CUDA/HIP than Metal/WebGPU.",
+              "Advanced GEMM/attention tensor-core patterns have low confidence on these targets."
+            ],
+            "confidence": 0.55,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/metal/test_metal_codegen.py",
+                "line": 1
+              },
+              {
+                "file_path": "testing/python/webgpu/test_webgpu_codegen.py",
+                "line": 1
+              }
+            ]
+          }
+        },
+        "model_resolution_required": true,
+        "confidence": 0.75,
+        "limitations": [
+          "Use user-provided vendor/model to refine target and available intrinsics before generating final operator code."
+        ],
+        "optimization_decision_points": [
+          "Use T.Pipelined for GPU copy/compute overlap; num_stages is constrained by shared memory/register pressure.",
+          "CUDA cp.async auto-lowering is gated by pipelined loop context and pass config.",
+          "Explicit async copy is not portable to CPU/Metal/WebGPU without target validation."
+        ]
+      }
+    },
+    {
+      "capability_id": "tensor_intrinsics",
+      "summary": "Use high-level tile ops that lower to MMA/WGMMA/TCGEN05/MFMA/scalar instructions.",
+      "primary_symbols": [
+        "T.gemm",
+        "T.wgmma_gemm",
+        "T.tcgen05_gemm",
+        "T.gemm_sp",
+        "T.gemm_sp_v2",
+        "GemmWarpPolicy"
+      ],
+      "related_modules": [
+        "tilelang/language/gemm_op.py",
+        "tilelang/tileop/base.py",
+        "src/op/gemm.h",
+        "src/layout/gemm_layouts.cc"
+      ],
+      "related_patterns": [
+        "pattern.gemm.basic_tiled",
+        "pattern.gemm.sparse_2_4",
+        "pattern.attention.flash_mha_forward",
+        "pattern.gemm.explicit_async_tensorcore",
+        "pattern.gemm.dequantized_low_bit"
+      ],
+      "when_to_use": "Use for matrix multiply, attention QK/PV, convolution-as-GEMM, and sparse tensor-core work.",
+      "common_pitfalls": [
+        "T.gemm requires 2D C and compatible M/K/N.",
+        "Explicit WGMMA/TCGEN05 paths fail if target or operand pattern is unsupported.",
+        "TCGEN05 2CTA requires cluster_dims."
+      ],
+      "confidence": 0.94,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/gemm_op.py",
+          "line": 148,
+          "kind": "source"
+        },
+        {
+          "file_path": "tilelang/language/gemm_op.py",
+          "line": 235,
+          "kind": "source"
+        },
+        {
+          "file_path": "tilelang/tileop/base.py",
+          "line": 5,
+          "kind": "source"
+        }
+      ],
+      "device_adaptation": {
+        "schema": {
+          "field_version": "device-adaptation-v1",
+          "expected_user_device_input": {
+            "vendor": "required, e.g. NVIDIA/AMD/Intel/Apple/CPU/other",
+            "model": "required when available, e.g. A100/H100/B100/MI300X/MI350/M2/EPYC",
+            "optional_arch": "CUDA sm_XX, AMD gfxXXX, LLVM mcpu, or TVM target tag"
+          },
+          "target_selection_order": [
+            "Use exact model/arch when supplied, e.g. cuda -arch=sm_90 or hip -mcpu=gfx950.",
+            "If only vendor is supplied, choose documented base target: cuda, hip, metal, llvm/c, or webgpu.",
+            "If no device is supplied, keep target auto but avoid architecture-specific intrinsics in generated code."
+          ],
+          "canonical_targets": {
+            "nvidia_cuda": [
+              "cuda",
+              "cuda -arch=sm_80",
+              "cuda -arch=sm_90",
+              "cuda -arch=sm_100a",
+              "cutedsl"
+            ],
+            "amd_hip": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "cpu": [
+              "llvm",
+              "c"
+            ],
+            "apple_metal": [
+              "metal"
+            ],
+            "webgpu": [
+              "webgpu"
+            ]
+          },
+          "evidence": [
+            {
+              "file_path": "docs/get_started/targets.md",
+              "line": 11,
+              "note": "target table and examples"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cuda.py",
+              "line": 18,
+              "note": "CUDA arch classification"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cdna.py",
+              "line": 7,
+              "note": "CDNA/gfx950 LDS information"
+            },
+            {
+              "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+              "line": 1,
+              "note": "CPU GEMM scalar path tests"
+            }
+          ]
+        },
+        "vendor_notes": {
+          "nvidia_cuda": {
+            "applicability": "Primary GPU path for most examples and advanced tensor-core features.",
+            "target_examples": [
+              "cuda",
+              "cuda -arch=sm_80 for A100/A30",
+              "cuda -arch=sm_89 for RTX 4090/Ada",
+              "cuda -arch=sm_90 for H100/Hopper",
+              "cuda -arch=sm_100a for B100/Blackwell where supported"
+            ],
+            "optimization_notes": [
+              "Use tensor-core GEMM for fp16/bf16/int8/int4 where the architecture supports it.",
+              "Ampere-class sm_80+ has MMA support in carver arch helpers.",
+              "Hopper sm_90 enables WGMMA/TMA-related paths; explicit WGMMA requires manual waits.",
+              "Blackwell sm100/sm100a paths may use TCGEN05/TMEM/2CTA features; require matching target and cluster settings.",
+              "Use T.Pipelined and shared-memory staging for GEMM/attention memory-compute overlap."
+            ],
+            "limits": [
+              "Architecture-specific intrinsics can fail compilation if the target does not support them.",
+              "Runtime tensors must be on the same CUDA device as the compiled kernel."
+            ],
+            "confidence": 0.9,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 17
+              },
+              {
+                "file_path": "tilelang/carver/arch/cuda.py",
+                "line": 18
+              },
+              {
+                "file_path": "testing/python/language/test_tilelang_language_wgmma_gemm.py",
+                "line": 24
+              },
+              {
+                "file_path": "src/transform/lower_blackwell_2sm.cc",
+                "line": 2
+              }
+            ]
+          },
+          "amd_hip": {
+            "applicability": "ROCm/HIP target path for AMD GPUs; examples under examples/amd and CDNA architecture helpers indicate supported tuning context.",
+            "target_examples": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "optimization_notes": [
+              "Prefer HIP target and CDNA-aware tile sizes when running on AMD accelerators.",
+              "Account for LDS/shared memory capacity; gfx950 has a 160KB LDS override in arch helpers.",
+              "T.gemm exposes k_pack noted as ROCm-specific in gemm_op.py.",
+              "Avoid CUDA-only WGMMA/TCGEN/TMA assumptions unless a HIP lowering path is explicitly present."
+            ],
+            "limits": [
+              "Some examples and advanced intrinsics are NVIDIA-specific.",
+              "Device model to exact gfx target should be supplied by user or runtime tooling."
+            ],
+            "confidence": 0.78,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 19
+              },
+              {
+                "file_path": "tilelang/carver/arch/cdna.py",
+                "line": 7
+              },
+              {
+                "file_path": "tilelang/language/gemm_op.py",
+                "line": 157
+              },
+              {
+                "file_path": "examples/amd/example_amd_flash_attn_fwd.py",
+                "line": 1
+              }
+            ]
+          },
+          "cpu": {
+            "applicability": "CPU/LLVM/C path for validation, scalar codegen, or non-GPU execution.",
+            "target_examples": [
+              "llvm",
+              "c"
+            ],
+            "optimization_notes": [
+              "Use T.Kernel(..., is_cpu=True) for CPU kernel frames.",
+              "Do not rely on GPU thread bindings, shared memory semantics, cp.async, WGMMA, TMA, or tensor-core paths.",
+              "Useful for correctness/codegen checks; performance strategy differs from GPU tiling."
+            ],
+            "limits": [
+              "Many GPU-optimized examples assume CUDA tensors and are not directly portable.",
+              "CPU arch helper intentionally stores minimal detail."
+            ],
+            "confidence": 0.82,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+                "line": 1
+              },
+              {
+                "file_path": "tilelang/carver/arch/cpu.py",
+                "line": 8
+              }
+            ]
+          },
+          "apple_metal_webgpu": {
+            "applicability": "Documented targets for Apple Metal and WebGPU/browser runtimes; suitable only for patterns avoiding CUDA/HIP-specific intrinsics unless tests show support.",
+            "target_examples": [
+              "metal",
+              "webgpu"
+            ],
+            "optimization_notes": [
+              "Favor generic T.Kernel/T.Parallel/T.copy style and avoid tensor-core-specific or CUDA barrier APIs.",
+              "Treat memory scope and vectorization assumptions as target-specific until validated."
+            ],
+            "limits": [
+              "The current operator-development examples are much richer for CUDA/HIP than Metal/WebGPU.",
+              "Advanced GEMM/attention tensor-core patterns have low confidence on these targets."
+            ],
+            "confidence": 0.55,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/metal/test_metal_codegen.py",
+                "line": 1
+              },
+              {
+                "file_path": "testing/python/webgpu/test_webgpu_codegen.py",
+                "line": 1
+              }
+            ]
+          }
+        },
+        "model_resolution_required": true,
+        "confidence": 0.86,
+        "limitations": [
+          "Use user-provided vendor/model to refine target and available intrinsics before generating final operator code."
+        ],
+        "optimization_decision_points": [
+          "CUDA: T.gemm dispatches target-specific tensor-core paths; explicit WGMMA is Hopper-specific, TCGEN05 is Blackwell-specific.",
+          "AMD: use HIP/MFMA-capable paths where supported; k_pack is documented as ROCm-specific.",
+          "CPU: T.gemm can use scalar path in CPU tests, not tensor cores.",
+          "Metal/WebGPU: treat tensor-core style patterns as low-confidence unless tested."
+        ]
+      }
+    },
+    {
+      "capability_id": "reductions",
+      "summary": "Build reductions, softmax stats, norm, cumulative sum, and warp-level aggregation.",
+      "primary_symbols": [
+        "T.reduce",
+        "T.reduce_sum",
+        "T.reduce_max",
+        "T.reduce_min",
+        "T.reduce_absmax",
+        "T.cumsum",
+        "T.warp_reduce_sum",
+        "T.warp_reduce_max"
+      ],
+      "related_modules": [
+        "tilelang/language/reduce_op.py",
+        "testing/python/language/test_tilelang_language_reduce.py",
+        "examples/online_softmax"
+      ],
+      "related_patterns": [
+        "pattern.reduction.online_softmax",
+        "pattern.attention.flash_mha_forward",
+        "pattern.topk.selection",
+        "pattern.norm.rms_norm"
+      ],
+      "when_to_use": "Use when operator needs row/block reduction, online softmax, top-k support, or norm statistics.",
+      "common_pitfalls": [
+        "Output shape must match reduce dim contract.",
+        "Only shared/fragment scopes are accepted by reduce macro branches.",
+        "NaN propagation is narrow and CUDA-specific."
+      ],
+      "confidence": 0.92,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/reduce_op.py",
+          "line": 25,
+          "kind": "source"
+        },
+        {
+          "file_path": "tilelang/language/reduce_op.py",
+          "line": 120,
+          "kind": "source"
+        }
+      ],
+      "device_adaptation": {
+        "schema": {
+          "field_version": "device-adaptation-v1",
+          "expected_user_device_input": {
+            "vendor": "required, e.g. NVIDIA/AMD/Intel/Apple/CPU/other",
+            "model": "required when available, e.g. A100/H100/B100/MI300X/MI350/M2/EPYC",
+            "optional_arch": "CUDA sm_XX, AMD gfxXXX, LLVM mcpu, or TVM target tag"
+          },
+          "target_selection_order": [
+            "Use exact model/arch when supplied, e.g. cuda -arch=sm_90 or hip -mcpu=gfx950.",
+            "If only vendor is supplied, choose documented base target: cuda, hip, metal, llvm/c, or webgpu.",
+            "If no device is supplied, keep target auto but avoid architecture-specific intrinsics in generated code."
+          ],
+          "canonical_targets": {
+            "nvidia_cuda": [
+              "cuda",
+              "cuda -arch=sm_80",
+              "cuda -arch=sm_90",
+              "cuda -arch=sm_100a",
+              "cutedsl"
+            ],
+            "amd_hip": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "cpu": [
+              "llvm",
+              "c"
+            ],
+            "apple_metal": [
+              "metal"
+            ],
+            "webgpu": [
+              "webgpu"
+            ]
+          },
+          "evidence": [
+            {
+              "file_path": "docs/get_started/targets.md",
+              "line": 11,
+              "note": "target table and examples"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cuda.py",
+              "line": 18,
+              "note": "CUDA arch classification"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cdna.py",
+              "line": 7,
+              "note": "CDNA/gfx950 LDS information"
+            },
+            {
+              "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+              "line": 1,
+              "note": "CPU GEMM scalar path tests"
+            }
+          ]
+        },
+        "vendor_notes": {
+          "nvidia_cuda": {
+            "applicability": "Primary GPU path for most examples and advanced tensor-core features.",
+            "target_examples": [
+              "cuda",
+              "cuda -arch=sm_80 for A100/A30",
+              "cuda -arch=sm_89 for RTX 4090/Ada",
+              "cuda -arch=sm_90 for H100/Hopper",
+              "cuda -arch=sm_100a for B100/Blackwell where supported"
+            ],
+            "optimization_notes": [
+              "Use tensor-core GEMM for fp16/bf16/int8/int4 where the architecture supports it.",
+              "Ampere-class sm_80+ has MMA support in carver arch helpers.",
+              "Hopper sm_90 enables WGMMA/TMA-related paths; explicit WGMMA requires manual waits.",
+              "Blackwell sm100/sm100a paths may use TCGEN05/TMEM/2CTA features; require matching target and cluster settings.",
+              "Use T.Pipelined and shared-memory staging for GEMM/attention memory-compute overlap."
+            ],
+            "limits": [
+              "Architecture-specific intrinsics can fail compilation if the target does not support them.",
+              "Runtime tensors must be on the same CUDA device as the compiled kernel."
+            ],
+            "confidence": 0.9,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 17
+              },
+              {
+                "file_path": "tilelang/carver/arch/cuda.py",
+                "line": 18
+              },
+              {
+                "file_path": "testing/python/language/test_tilelang_language_wgmma_gemm.py",
+                "line": 24
+              },
+              {
+                "file_path": "src/transform/lower_blackwell_2sm.cc",
+                "line": 2
+              }
+            ]
+          },
+          "amd_hip": {
+            "applicability": "ROCm/HIP target path for AMD GPUs; examples under examples/amd and CDNA architecture helpers indicate supported tuning context.",
+            "target_examples": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "optimization_notes": [
+              "Prefer HIP target and CDNA-aware tile sizes when running on AMD accelerators.",
+              "Account for LDS/shared memory capacity; gfx950 has a 160KB LDS override in arch helpers.",
+              "T.gemm exposes k_pack noted as ROCm-specific in gemm_op.py.",
+              "Avoid CUDA-only WGMMA/TCGEN/TMA assumptions unless a HIP lowering path is explicitly present."
+            ],
+            "limits": [
+              "Some examples and advanced intrinsics are NVIDIA-specific.",
+              "Device model to exact gfx target should be supplied by user or runtime tooling."
+            ],
+            "confidence": 0.78,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 19
+              },
+              {
+                "file_path": "tilelang/carver/arch/cdna.py",
+                "line": 7
+              },
+              {
+                "file_path": "tilelang/language/gemm_op.py",
+                "line": 157
+              },
+              {
+                "file_path": "examples/amd/example_amd_flash_attn_fwd.py",
+                "line": 1
+              }
+            ]
+          },
+          "cpu": {
+            "applicability": "CPU/LLVM/C path for validation, scalar codegen, or non-GPU execution.",
+            "target_examples": [
+              "llvm",
+              "c"
+            ],
+            "optimization_notes": [
+              "Use T.Kernel(..., is_cpu=True) for CPU kernel frames.",
+              "Do not rely on GPU thread bindings, shared memory semantics, cp.async, WGMMA, TMA, or tensor-core paths.",
+              "Useful for correctness/codegen checks; performance strategy differs from GPU tiling."
+            ],
+            "limits": [
+              "Many GPU-optimized examples assume CUDA tensors and are not directly portable.",
+              "CPU arch helper intentionally stores minimal detail."
+            ],
+            "confidence": 0.82,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+                "line": 1
+              },
+              {
+                "file_path": "tilelang/carver/arch/cpu.py",
+                "line": 8
+              }
+            ]
+          },
+          "apple_metal_webgpu": {
+            "applicability": "Documented targets for Apple Metal and WebGPU/browser runtimes; suitable only for patterns avoiding CUDA/HIP-specific intrinsics unless tests show support.",
+            "target_examples": [
+              "metal",
+              "webgpu"
+            ],
+            "optimization_notes": [
+              "Favor generic T.Kernel/T.Parallel/T.copy style and avoid tensor-core-specific or CUDA barrier APIs.",
+              "Treat memory scope and vectorization assumptions as target-specific until validated."
+            ],
+            "limits": [
+              "The current operator-development examples are much richer for CUDA/HIP than Metal/WebGPU.",
+              "Advanced GEMM/attention tensor-core patterns have low confidence on these targets."
+            ],
+            "confidence": 0.55,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/metal/test_metal_codegen.py",
+                "line": 1
+              },
+              {
+                "file_path": "testing/python/webgpu/test_webgpu_codegen.py",
+                "line": 1
+              }
+            ]
+          }
+        },
+        "model_resolution_required": true,
+        "confidence": 0.75,
+        "limitations": [
+          "Use user-provided vendor/model to refine target and available intrinsics before generating final operator code."
+        ],
+        "optimization_decision_points": [
+          "Reductions are broadly useful across devices, but warp-level reducers and NaN behavior may be backend-specific.",
+          "For attention/softmax on GPUs, choose block sizes that fit shared/fragment memory.",
+          "CPU reductions should avoid GPU-specific warp assumptions."
+        ]
+      }
+    },
+    {
+      "capability_id": "gemm_like_patterns",
+      "summary": "Dense, split-K, sparse, dequantized, grouped, FP8/int4, and persistent GEMM examples.",
+      "primary_symbols": [
+        "T.gemm",
+        "T.gemm_sp",
+        "T.gemm_sp_v2",
+        "T.Pipelined",
+        "T.copy",
+        "tilelang.autotune"
+      ],
+      "related_modules": [
+        "examples/gemm",
+        "examples/gemm_splitk",
+        "examples/gemm_fp8",
+        "examples/gemm_int4",
+        "examples/grouped_gemm",
+        "benchmark/matmul"
+      ],
+      "related_patterns": [
+        "pattern.gemm.basic_tiled",
+        "pattern.gemm.split_k_atomic",
+        "pattern.gemm.sparse_2_4",
+        "pattern.autotune.kernel_config_search",
+        "pattern.gemm.dequantized_low_bit",
+        "pattern.gemm.grouped_moe",
+        "pattern.dynamic_shape.symbolic_gemm",
+        "pattern.gemm.explicit_async_tensorcore"
+      ],
+      "when_to_use": "Use for any matrix-multiply-like operator or epilogue fusion.",
+      "common_pitfalls": [
+        "Metadata/layout constraints for sparse/dequantized variants.",
+        "Atomic split-K needs correct output accumulation.",
+        "FP8/int4 kernels need dtype-specific tolerance and layout."
+      ],
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "examples/gemm/example_gemm.py",
+          "line": 22,
+          "kind": "source"
+        },
+        {
+          "file_path": "benchmark/matmul/benchmark_matmul.py",
+          "line": 202,
+          "kind": "source"
+        }
+      ],
+      "device_adaptation": {
+        "schema": {
+          "field_version": "device-adaptation-v1",
+          "expected_user_device_input": {
+            "vendor": "required, e.g. NVIDIA/AMD/Intel/Apple/CPU/other",
+            "model": "required when available, e.g. A100/H100/B100/MI300X/MI350/M2/EPYC",
+            "optional_arch": "CUDA sm_XX, AMD gfxXXX, LLVM mcpu, or TVM target tag"
+          },
+          "target_selection_order": [
+            "Use exact model/arch when supplied, e.g. cuda -arch=sm_90 or hip -mcpu=gfx950.",
+            "If only vendor is supplied, choose documented base target: cuda, hip, metal, llvm/c, or webgpu.",
+            "If no device is supplied, keep target auto but avoid architecture-specific intrinsics in generated code."
+          ],
+          "canonical_targets": {
+            "nvidia_cuda": [
+              "cuda",
+              "cuda -arch=sm_80",
+              "cuda -arch=sm_90",
+              "cuda -arch=sm_100a",
+              "cutedsl"
+            ],
+            "amd_hip": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "cpu": [
+              "llvm",
+              "c"
+            ],
+            "apple_metal": [
+              "metal"
+            ],
+            "webgpu": [
+              "webgpu"
+            ]
+          },
+          "evidence": [
+            {
+              "file_path": "docs/get_started/targets.md",
+              "line": 11,
+              "note": "target table and examples"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cuda.py",
+              "line": 18,
+              "note": "CUDA arch classification"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cdna.py",
+              "line": 7,
+              "note": "CDNA/gfx950 LDS information"
+            },
+            {
+              "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+              "line": 1,
+              "note": "CPU GEMM scalar path tests"
+            }
+          ]
+        },
+        "vendor_notes": {
+          "nvidia_cuda": {
+            "applicability": "Primary GPU path for most examples and advanced tensor-core features.",
+            "target_examples": [
+              "cuda",
+              "cuda -arch=sm_80 for A100/A30",
+              "cuda -arch=sm_89 for RTX 4090/Ada",
+              "cuda -arch=sm_90 for H100/Hopper",
+              "cuda -arch=sm_100a for B100/Blackwell where supported"
+            ],
+            "optimization_notes": [
+              "Use tensor-core GEMM for fp16/bf16/int8/int4 where the architecture supports it.",
+              "Ampere-class sm_80+ has MMA support in carver arch helpers.",
+              "Hopper sm_90 enables WGMMA/TMA-related paths; explicit WGMMA requires manual waits.",
+              "Blackwell sm100/sm100a paths may use TCGEN05/TMEM/2CTA features; require matching target and cluster settings.",
+              "Use T.Pipelined and shared-memory staging for GEMM/attention memory-compute overlap."
+            ],
+            "limits": [
+              "Architecture-specific intrinsics can fail compilation if the target does not support them.",
+              "Runtime tensors must be on the same CUDA device as the compiled kernel."
+            ],
+            "confidence": 0.9,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 17
+              },
+              {
+                "file_path": "tilelang/carver/arch/cuda.py",
+                "line": 18
+              },
+              {
+                "file_path": "testing/python/language/test_tilelang_language_wgmma_gemm.py",
+                "line": 24
+              },
+              {
+                "file_path": "src/transform/lower_blackwell_2sm.cc",
+                "line": 2
+              }
+            ]
+          },
+          "amd_hip": {
+            "applicability": "ROCm/HIP target path for AMD GPUs; examples under examples/amd and CDNA architecture helpers indicate supported tuning context.",
+            "target_examples": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "optimization_notes": [
+              "Prefer HIP target and CDNA-aware tile sizes when running on AMD accelerators.",
+              "Account for LDS/shared memory capacity; gfx950 has a 160KB LDS override in arch helpers.",
+              "T.gemm exposes k_pack noted as ROCm-specific in gemm_op.py.",
+              "Avoid CUDA-only WGMMA/TCGEN/TMA assumptions unless a HIP lowering path is explicitly present."
+            ],
+            "limits": [
+              "Some examples and advanced intrinsics are NVIDIA-specific.",
+              "Device model to exact gfx target should be supplied by user or runtime tooling."
+            ],
+            "confidence": 0.78,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 19
+              },
+              {
+                "file_path": "tilelang/carver/arch/cdna.py",
+                "line": 7
+              },
+              {
+                "file_path": "tilelang/language/gemm_op.py",
+                "line": 157
+              },
+              {
+                "file_path": "examples/amd/example_amd_flash_attn_fwd.py",
+                "line": 1
+              }
+            ]
+          },
+          "cpu": {
+            "applicability": "CPU/LLVM/C path for validation, scalar codegen, or non-GPU execution.",
+            "target_examples": [
+              "llvm",
+              "c"
+            ],
+            "optimization_notes": [
+              "Use T.Kernel(..., is_cpu=True) for CPU kernel frames.",
+              "Do not rely on GPU thread bindings, shared memory semantics, cp.async, WGMMA, TMA, or tensor-core paths.",
+              "Useful for correctness/codegen checks; performance strategy differs from GPU tiling."
+            ],
+            "limits": [
+              "Many GPU-optimized examples assume CUDA tensors and are not directly portable.",
+              "CPU arch helper intentionally stores minimal detail."
+            ],
+            "confidence": 0.82,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+                "line": 1
+              },
+              {
+                "file_path": "tilelang/carver/arch/cpu.py",
+                "line": 8
+              }
+            ]
+          },
+          "apple_metal_webgpu": {
+            "applicability": "Documented targets for Apple Metal and WebGPU/browser runtimes; suitable only for patterns avoiding CUDA/HIP-specific intrinsics unless tests show support.",
+            "target_examples": [
+              "metal",
+              "webgpu"
+            ],
+            "optimization_notes": [
+              "Favor generic T.Kernel/T.Parallel/T.copy style and avoid tensor-core-specific or CUDA barrier APIs.",
+              "Treat memory scope and vectorization assumptions as target-specific until validated."
+            ],
+            "limits": [
+              "The current operator-development examples are much richer for CUDA/HIP than Metal/WebGPU.",
+              "Advanced GEMM/attention tensor-core patterns have low confidence on these targets."
+            ],
+            "confidence": 0.55,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/metal/test_metal_codegen.py",
+                "line": 1
+              },
+              {
+                "file_path": "testing/python/webgpu/test_webgpu_codegen.py",
+                "line": 1
+              }
+            ]
+          }
+        },
+        "model_resolution_required": true,
+        "confidence": 0.86,
+        "limitations": [
+          "Use user-provided vendor/model to refine target and available intrinsics before generating final operator code."
+        ],
+        "optimization_decision_points": [
+          "Use exact NVIDIA sm or AMD gfx target for GEMM tuning.",
+          "For NVIDIA Ampere/Ada/Hopper/Blackwell, choose dtype/intrinsic path based on tensor-core support.",
+          "For AMD CDNA, use HIP target and verify LDS footprint.",
+          "For CPU, use CPU GEMM usage pattern rather than GPU shared-memory-heavy examples."
+        ]
+      }
+    },
+    {
+      "capability_id": "attention_like_patterns",
+      "summary": "Flash attention, GQA/MHA, decode, paged KV, MLA-style examples and benchmarks.",
+      "primary_symbols": [
+        "T.gemm",
+        "T.reduce_max",
+        "T.reduce_sum",
+        "T.copy",
+        "T.Pipelined",
+        "GemmWarpPolicy.FullCol"
+      ],
+      "related_modules": [
+        "examples/flash_attention",
+        "examples/flash_decoding",
+        "examples/deepseek_mla",
+        "examples/online_softmax",
+        "benchmark/blocksparse_attention"
+      ],
+      "related_patterns": [
+        "pattern.attention.flash_mha_forward",
+        "pattern.attention.decode_paged",
+        "pattern.reduction.online_softmax"
+      ],
+      "when_to_use": "Use for attention kernels with QK/PV matmul, online softmax, variable length, or KV-cache indexing.",
+      "common_pitfalls": [
+        "Numerical update order matters.",
+        "Layouts differ between BSHD/BHSD/GQA/varlen examples.",
+        "Paged/decode metadata must be consistent."
+      ],
+      "confidence": 0.84,
+      "evidence": [
+        {
+          "file_path": "examples/flash_attention/example_mha_fwd_bshd.py",
+          "line": 67,
+          "kind": "source"
+        },
+        {
+          "file_path": "docs/deeplearning_operators/deepseek_mla.md",
+          "line": 90,
+          "kind": "source"
+        }
+      ],
+      "device_adaptation": {
+        "schema": {
+          "field_version": "device-adaptation-v1",
+          "expected_user_device_input": {
+            "vendor": "required, e.g. NVIDIA/AMD/Intel/Apple/CPU/other",
+            "model": "required when available, e.g. A100/H100/B100/MI300X/MI350/M2/EPYC",
+            "optional_arch": "CUDA sm_XX, AMD gfxXXX, LLVM mcpu, or TVM target tag"
+          },
+          "target_selection_order": [
+            "Use exact model/arch when supplied, e.g. cuda -arch=sm_90 or hip -mcpu=gfx950.",
+            "If only vendor is supplied, choose documented base target: cuda, hip, metal, llvm/c, or webgpu.",
+            "If no device is supplied, keep target auto but avoid architecture-specific intrinsics in generated code."
+          ],
+          "canonical_targets": {
+            "nvidia_cuda": [
+              "cuda",
+              "cuda -arch=sm_80",
+              "cuda -arch=sm_90",
+              "cuda -arch=sm_100a",
+              "cutedsl"
+            ],
+            "amd_hip": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "cpu": [
+              "llvm",
+              "c"
+            ],
+            "apple_metal": [
+              "metal"
+            ],
+            "webgpu": [
+              "webgpu"
+            ]
+          },
+          "evidence": [
+            {
+              "file_path": "docs/get_started/targets.md",
+              "line": 11,
+              "note": "target table and examples"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cuda.py",
+              "line": 18,
+              "note": "CUDA arch classification"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cdna.py",
+              "line": 7,
+              "note": "CDNA/gfx950 LDS information"
+            },
+            {
+              "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+              "line": 1,
+              "note": "CPU GEMM scalar path tests"
+            }
+          ]
+        },
+        "vendor_notes": {
+          "nvidia_cuda": {
+            "applicability": "Primary GPU path for most examples and advanced tensor-core features.",
+            "target_examples": [
+              "cuda",
+              "cuda -arch=sm_80 for A100/A30",
+              "cuda -arch=sm_89 for RTX 4090/Ada",
+              "cuda -arch=sm_90 for H100/Hopper",
+              "cuda -arch=sm_100a for B100/Blackwell where supported"
+            ],
+            "optimization_notes": [
+              "Use tensor-core GEMM for fp16/bf16/int8/int4 where the architecture supports it.",
+              "Ampere-class sm_80+ has MMA support in carver arch helpers.",
+              "Hopper sm_90 enables WGMMA/TMA-related paths; explicit WGMMA requires manual waits.",
+              "Blackwell sm100/sm100a paths may use TCGEN05/TMEM/2CTA features; require matching target and cluster settings.",
+              "Use T.Pipelined and shared-memory staging for GEMM/attention memory-compute overlap."
+            ],
+            "limits": [
+              "Architecture-specific intrinsics can fail compilation if the target does not support them.",
+              "Runtime tensors must be on the same CUDA device as the compiled kernel."
+            ],
+            "confidence": 0.9,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 17
+              },
+              {
+                "file_path": "tilelang/carver/arch/cuda.py",
+                "line": 18
+              },
+              {
+                "file_path": "testing/python/language/test_tilelang_language_wgmma_gemm.py",
+                "line": 24
+              },
+              {
+                "file_path": "src/transform/lower_blackwell_2sm.cc",
+                "line": 2
+              }
+            ]
+          },
+          "amd_hip": {
+            "applicability": "ROCm/HIP target path for AMD GPUs; examples under examples/amd and CDNA architecture helpers indicate supported tuning context.",
+            "target_examples": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "optimization_notes": [
+              "Prefer HIP target and CDNA-aware tile sizes when running on AMD accelerators.",
+              "Account for LDS/shared memory capacity; gfx950 has a 160KB LDS override in arch helpers.",
+              "T.gemm exposes k_pack noted as ROCm-specific in gemm_op.py.",
+              "Avoid CUDA-only WGMMA/TCGEN/TMA assumptions unless a HIP lowering path is explicitly present."
+            ],
+            "limits": [
+              "Some examples and advanced intrinsics are NVIDIA-specific.",
+              "Device model to exact gfx target should be supplied by user or runtime tooling."
+            ],
+            "confidence": 0.78,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 19
+              },
+              {
+                "file_path": "tilelang/carver/arch/cdna.py",
+                "line": 7
+              },
+              {
+                "file_path": "tilelang/language/gemm_op.py",
+                "line": 157
+              },
+              {
+                "file_path": "examples/amd/example_amd_flash_attn_fwd.py",
+                "line": 1
+              }
+            ]
+          },
+          "cpu": {
+            "applicability": "CPU/LLVM/C path for validation, scalar codegen, or non-GPU execution.",
+            "target_examples": [
+              "llvm",
+              "c"
+            ],
+            "optimization_notes": [
+              "Use T.Kernel(..., is_cpu=True) for CPU kernel frames.",
+              "Do not rely on GPU thread bindings, shared memory semantics, cp.async, WGMMA, TMA, or tensor-core paths.",
+              "Useful for correctness/codegen checks; performance strategy differs from GPU tiling."
+            ],
+            "limits": [
+              "Many GPU-optimized examples assume CUDA tensors and are not directly portable.",
+              "CPU arch helper intentionally stores minimal detail."
+            ],
+            "confidence": 0.82,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+                "line": 1
+              },
+              {
+                "file_path": "tilelang/carver/arch/cpu.py",
+                "line": 8
+              }
+            ]
+          },
+          "apple_metal_webgpu": {
+            "applicability": "Documented targets for Apple Metal and WebGPU/browser runtimes; suitable only for patterns avoiding CUDA/HIP-specific intrinsics unless tests show support.",
+            "target_examples": [
+              "metal",
+              "webgpu"
+            ],
+            "optimization_notes": [
+              "Favor generic T.Kernel/T.Parallel/T.copy style and avoid tensor-core-specific or CUDA barrier APIs.",
+              "Treat memory scope and vectorization assumptions as target-specific until validated."
+            ],
+            "limits": [
+              "The current operator-development examples are much richer for CUDA/HIP than Metal/WebGPU.",
+              "Advanced GEMM/attention tensor-core patterns have low confidence on these targets."
+            ],
+            "confidence": 0.55,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/metal/test_metal_codegen.py",
+                "line": 1
+              },
+              {
+                "file_path": "testing/python/webgpu/test_webgpu_codegen.py",
+                "line": 1
+              }
+            ]
+          }
+        },
+        "model_resolution_required": true,
+        "confidence": 0.68,
+        "limitations": [
+          "Use user-provided vendor/model to refine target and available intrinsics before generating final operator code."
+        ],
+        "optimization_decision_points": [
+          "CUDA/Hopper attention may benefit from TMA/WGMMA/layout inference; Blackwell may use TCGEN-related kernels where examples/tests support it.",
+          "AMD attention examples exist but should use HIP target and avoid NVIDIA-only barriers.",
+          "CPU/Metal/WebGPU coverage is low for advanced attention; use generic patterns only after validation."
+        ]
+      }
+    },
+    {
+      "capability_id": "convolution_like_patterns",
+      "summary": "Convolution examples and autotune flows, generally GEMM-like after tiling/im2col-style staging.",
+      "primary_symbols": [
+        "T.Kernel",
+        "T.copy",
+        "T.gemm",
+        "T.c2d_im2col",
+        "tilelang.autotune"
+      ],
+      "related_modules": [
+        "examples/convolution",
+        "tilelang/language/copy_op.py"
+      ],
+      "related_patterns": [
+        "pattern.conv.im2col_gemm"
+      ],
+      "when_to_use": "Use for conv2d-like operators when output tiles can map to matrix multiply or im2col staging.",
+      "common_pitfalls": [
+        "Boundary masking, padding, dilation, and data layout must be handled explicitly.",
+        "Coverage appears example-based rather than deeply documented."
+      ],
+      "confidence": 0.74,
+      "evidence": [
+        {
+          "file_path": "examples/convolution/example_convolution.py",
+          "line": 64,
+          "kind": "source"
+        },
+        {
+          "file_path": "examples/convolution/README.md",
+          "line": 1,
+          "kind": "source"
+        }
+      ],
+      "device_adaptation": {
+        "schema": {
+          "field_version": "device-adaptation-v1",
+          "expected_user_device_input": {
+            "vendor": "required, e.g. NVIDIA/AMD/Intel/Apple/CPU/other",
+            "model": "required when available, e.g. A100/H100/B100/MI300X/MI350/M2/EPYC",
+            "optional_arch": "CUDA sm_XX, AMD gfxXXX, LLVM mcpu, or TVM target tag"
+          },
+          "target_selection_order": [
+            "Use exact model/arch when supplied, e.g. cuda -arch=sm_90 or hip -mcpu=gfx950.",
+            "If only vendor is supplied, choose documented base target: cuda, hip, metal, llvm/c, or webgpu.",
+            "If no device is supplied, keep target auto but avoid architecture-specific intrinsics in generated code."
+          ],
+          "canonical_targets": {
+            "nvidia_cuda": [
+              "cuda",
+              "cuda -arch=sm_80",
+              "cuda -arch=sm_90",
+              "cuda -arch=sm_100a",
+              "cutedsl"
+            ],
+            "amd_hip": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "cpu": [
+              "llvm",
+              "c"
+            ],
+            "apple_metal": [
+              "metal"
+            ],
+            "webgpu": [
+              "webgpu"
+            ]
+          },
+          "evidence": [
+            {
+              "file_path": "docs/get_started/targets.md",
+              "line": 11,
+              "note": "target table and examples"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cuda.py",
+              "line": 18,
+              "note": "CUDA arch classification"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cdna.py",
+              "line": 7,
+              "note": "CDNA/gfx950 LDS information"
+            },
+            {
+              "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+              "line": 1,
+              "note": "CPU GEMM scalar path tests"
+            }
+          ]
+        },
+        "vendor_notes": {
+          "nvidia_cuda": {
+            "applicability": "Primary GPU path for most examples and advanced tensor-core features.",
+            "target_examples": [
+              "cuda",
+              "cuda -arch=sm_80 for A100/A30",
+              "cuda -arch=sm_89 for RTX 4090/Ada",
+              "cuda -arch=sm_90 for H100/Hopper",
+              "cuda -arch=sm_100a for B100/Blackwell where supported"
+            ],
+            "optimization_notes": [
+              "Use tensor-core GEMM for fp16/bf16/int8/int4 where the architecture supports it.",
+              "Ampere-class sm_80+ has MMA support in carver arch helpers.",
+              "Hopper sm_90 enables WGMMA/TMA-related paths; explicit WGMMA requires manual waits.",
+              "Blackwell sm100/sm100a paths may use TCGEN05/TMEM/2CTA features; require matching target and cluster settings.",
+              "Use T.Pipelined and shared-memory staging for GEMM/attention memory-compute overlap."
+            ],
+            "limits": [
+              "Architecture-specific intrinsics can fail compilation if the target does not support them.",
+              "Runtime tensors must be on the same CUDA device as the compiled kernel."
+            ],
+            "confidence": 0.9,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 17
+              },
+              {
+                "file_path": "tilelang/carver/arch/cuda.py",
+                "line": 18
+              },
+              {
+                "file_path": "testing/python/language/test_tilelang_language_wgmma_gemm.py",
+                "line": 24
+              },
+              {
+                "file_path": "src/transform/lower_blackwell_2sm.cc",
+                "line": 2
+              }
+            ]
+          },
+          "amd_hip": {
+            "applicability": "ROCm/HIP target path for AMD GPUs; examples under examples/amd and CDNA architecture helpers indicate supported tuning context.",
+            "target_examples": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "optimization_notes": [
+              "Prefer HIP target and CDNA-aware tile sizes when running on AMD accelerators.",
+              "Account for LDS/shared memory capacity; gfx950 has a 160KB LDS override in arch helpers.",
+              "T.gemm exposes k_pack noted as ROCm-specific in gemm_op.py.",
+              "Avoid CUDA-only WGMMA/TCGEN/TMA assumptions unless a HIP lowering path is explicitly present."
+            ],
+            "limits": [
+              "Some examples and advanced intrinsics are NVIDIA-specific.",
+              "Device model to exact gfx target should be supplied by user or runtime tooling."
+            ],
+            "confidence": 0.78,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 19
+              },
+              {
+                "file_path": "tilelang/carver/arch/cdna.py",
+                "line": 7
+              },
+              {
+                "file_path": "tilelang/language/gemm_op.py",
+                "line": 157
+              },
+              {
+                "file_path": "examples/amd/example_amd_flash_attn_fwd.py",
+                "line": 1
+              }
+            ]
+          },
+          "cpu": {
+            "applicability": "CPU/LLVM/C path for validation, scalar codegen, or non-GPU execution.",
+            "target_examples": [
+              "llvm",
+              "c"
+            ],
+            "optimization_notes": [
+              "Use T.Kernel(..., is_cpu=True) for CPU kernel frames.",
+              "Do not rely on GPU thread bindings, shared memory semantics, cp.async, WGMMA, TMA, or tensor-core paths.",
+              "Useful for correctness/codegen checks; performance strategy differs from GPU tiling."
+            ],
+            "limits": [
+              "Many GPU-optimized examples assume CUDA tensors and are not directly portable.",
+              "CPU arch helper intentionally stores minimal detail."
+            ],
+            "confidence": 0.82,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+                "line": 1
+              },
+              {
+                "file_path": "tilelang/carver/arch/cpu.py",
+                "line": 8
+              }
+            ]
+          },
+          "apple_metal_webgpu": {
+            "applicability": "Documented targets for Apple Metal and WebGPU/browser runtimes; suitable only for patterns avoiding CUDA/HIP-specific intrinsics unless tests show support.",
+            "target_examples": [
+              "metal",
+              "webgpu"
+            ],
+            "optimization_notes": [
+              "Favor generic T.Kernel/T.Parallel/T.copy style and avoid tensor-core-specific or CUDA barrier APIs.",
+              "Treat memory scope and vectorization assumptions as target-specific until validated."
+            ],
+            "limits": [
+              "The current operator-development examples are much richer for CUDA/HIP than Metal/WebGPU.",
+              "Advanced GEMM/attention tensor-core patterns have low confidence on these targets."
+            ],
+            "confidence": 0.55,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/metal/test_metal_codegen.py",
+                "line": 1
+              },
+              {
+                "file_path": "testing/python/webgpu/test_webgpu_codegen.py",
+                "line": 1
+              }
+            ]
+          }
+        },
+        "model_resolution_required": true,
+        "confidence": 0.68,
+        "limitations": [
+          "Use user-provided vendor/model to refine target and available intrinsics before generating final operator code."
+        ],
+        "optimization_decision_points": [
+          "Map convolution to GEMM-like tiling when GPU tensor-core path is available.",
+          "For CPU/Metal/WebGPU, avoid assuming im2col/T.gemm lowering performance until validated."
+        ]
+      }
+    },
+    {
+      "capability_id": "elementwise_and_fusion_patterns",
+      "summary": "Elementwise, activation, normalization, epilogue fusion, casts, and per-token transforms.",
+      "primary_symbols": [
+        "T.Parallel",
+        "T.copy",
+        "T.alloc_local",
+        "T.max",
+        "T.exp",
+        "T.atomic_add",
+        "T.view",
+        "T.reshape"
+      ],
+      "related_modules": [
+        "examples/elementwise",
+        "examples/cast",
+        "examples/norm",
+        "tilelang/language/customize.py"
+      ],
+      "related_patterns": [
+        "pattern.elementwise.parallel_tile",
+        "pattern.reduction.online_softmax",
+        "pattern.norm.rms_norm"
+      ],
+      "when_to_use": "Use for lightweight standalone ops or GEMM/attention epilogues.",
+      "common_pitfalls": [
+        "Guard out-of-bound lanes.",
+        "Direct assignment vs T.copy staging affects generated memory access.",
+        "Alias buffers may require annotate_restrict_buffers."
+      ],
+      "confidence": 0.86,
+      "evidence": [
+        {
+          "file_path": "examples/elementwise/example_elementwise_add.py",
+          "line": 23,
+          "kind": "source"
+        },
+        {
+          "file_path": "docs/deeplearning_operators/elementwise.md",
+          "line": 212,
+          "kind": "source"
+        }
+      ],
+      "device_adaptation": {
+        "schema": {
+          "field_version": "device-adaptation-v1",
+          "expected_user_device_input": {
+            "vendor": "required, e.g. NVIDIA/AMD/Intel/Apple/CPU/other",
+            "model": "required when available, e.g. A100/H100/B100/MI300X/MI350/M2/EPYC",
+            "optional_arch": "CUDA sm_XX, AMD gfxXXX, LLVM mcpu, or TVM target tag"
+          },
+          "target_selection_order": [
+            "Use exact model/arch when supplied, e.g. cuda -arch=sm_90 or hip -mcpu=gfx950.",
+            "If only vendor is supplied, choose documented base target: cuda, hip, metal, llvm/c, or webgpu.",
+            "If no device is supplied, keep target auto but avoid architecture-specific intrinsics in generated code."
+          ],
+          "canonical_targets": {
+            "nvidia_cuda": [
+              "cuda",
+              "cuda -arch=sm_80",
+              "cuda -arch=sm_90",
+              "cuda -arch=sm_100a",
+              "cutedsl"
+            ],
+            "amd_hip": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "cpu": [
+              "llvm",
+              "c"
+            ],
+            "apple_metal": [
+              "metal"
+            ],
+            "webgpu": [
+              "webgpu"
+            ]
+          },
+          "evidence": [
+            {
+              "file_path": "docs/get_started/targets.md",
+              "line": 11,
+              "note": "target table and examples"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cuda.py",
+              "line": 18,
+              "note": "CUDA arch classification"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cdna.py",
+              "line": 7,
+              "note": "CDNA/gfx950 LDS information"
+            },
+            {
+              "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+              "line": 1,
+              "note": "CPU GEMM scalar path tests"
+            }
+          ]
+        },
+        "vendor_notes": {
+          "nvidia_cuda": {
+            "applicability": "Primary GPU path for most examples and advanced tensor-core features.",
+            "target_examples": [
+              "cuda",
+              "cuda -arch=sm_80 for A100/A30",
+              "cuda -arch=sm_89 for RTX 4090/Ada",
+              "cuda -arch=sm_90 for H100/Hopper",
+              "cuda -arch=sm_100a for B100/Blackwell where supported"
+            ],
+            "optimization_notes": [
+              "Use tensor-core GEMM for fp16/bf16/int8/int4 where the architecture supports it.",
+              "Ampere-class sm_80+ has MMA support in carver arch helpers.",
+              "Hopper sm_90 enables WGMMA/TMA-related paths; explicit WGMMA requires manual waits.",
+              "Blackwell sm100/sm100a paths may use TCGEN05/TMEM/2CTA features; require matching target and cluster settings.",
+              "Use T.Pipelined and shared-memory staging for GEMM/attention memory-compute overlap."
+            ],
+            "limits": [
+              "Architecture-specific intrinsics can fail compilation if the target does not support them.",
+              "Runtime tensors must be on the same CUDA device as the compiled kernel."
+            ],
+            "confidence": 0.9,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 17
+              },
+              {
+                "file_path": "tilelang/carver/arch/cuda.py",
+                "line": 18
+              },
+              {
+                "file_path": "testing/python/language/test_tilelang_language_wgmma_gemm.py",
+                "line": 24
+              },
+              {
+                "file_path": "src/transform/lower_blackwell_2sm.cc",
+                "line": 2
+              }
+            ]
+          },
+          "amd_hip": {
+            "applicability": "ROCm/HIP target path for AMD GPUs; examples under examples/amd and CDNA architecture helpers indicate supported tuning context.",
+            "target_examples": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "optimization_notes": [
+              "Prefer HIP target and CDNA-aware tile sizes when running on AMD accelerators.",
+              "Account for LDS/shared memory capacity; gfx950 has a 160KB LDS override in arch helpers.",
+              "T.gemm exposes k_pack noted as ROCm-specific in gemm_op.py.",
+              "Avoid CUDA-only WGMMA/TCGEN/TMA assumptions unless a HIP lowering path is explicitly present."
+            ],
+            "limits": [
+              "Some examples and advanced intrinsics are NVIDIA-specific.",
+              "Device model to exact gfx target should be supplied by user or runtime tooling."
+            ],
+            "confidence": 0.78,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 19
+              },
+              {
+                "file_path": "tilelang/carver/arch/cdna.py",
+                "line": 7
+              },
+              {
+                "file_path": "tilelang/language/gemm_op.py",
+                "line": 157
+              },
+              {
+                "file_path": "examples/amd/example_amd_flash_attn_fwd.py",
+                "line": 1
+              }
+            ]
+          },
+          "cpu": {
+            "applicability": "CPU/LLVM/C path for validation, scalar codegen, or non-GPU execution.",
+            "target_examples": [
+              "llvm",
+              "c"
+            ],
+            "optimization_notes": [
+              "Use T.Kernel(..., is_cpu=True) for CPU kernel frames.",
+              "Do not rely on GPU thread bindings, shared memory semantics, cp.async, WGMMA, TMA, or tensor-core paths.",
+              "Useful for correctness/codegen checks; performance strategy differs from GPU tiling."
+            ],
+            "limits": [
+              "Many GPU-optimized examples assume CUDA tensors and are not directly portable.",
+              "CPU arch helper intentionally stores minimal detail."
+            ],
+            "confidence": 0.82,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+                "line": 1
+              },
+              {
+                "file_path": "tilelang/carver/arch/cpu.py",
+                "line": 8
+              }
+            ]
+          },
+          "apple_metal_webgpu": {
+            "applicability": "Documented targets for Apple Metal and WebGPU/browser runtimes; suitable only for patterns avoiding CUDA/HIP-specific intrinsics unless tests show support.",
+            "target_examples": [
+              "metal",
+              "webgpu"
+            ],
+            "optimization_notes": [
+              "Favor generic T.Kernel/T.Parallel/T.copy style and avoid tensor-core-specific or CUDA barrier APIs.",
+              "Treat memory scope and vectorization assumptions as target-specific until validated."
+            ],
+            "limits": [
+              "The current operator-development examples are much richer for CUDA/HIP than Metal/WebGPU.",
+              "Advanced GEMM/attention tensor-core patterns have low confidence on these targets."
+            ],
+            "confidence": 0.55,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/metal/test_metal_codegen.py",
+                "line": 1
+              },
+              {
+                "file_path": "testing/python/webgpu/test_webgpu_codegen.py",
+                "line": 1
+              }
+            ]
+          }
+        },
+        "model_resolution_required": true,
+        "confidence": 0.75,
+        "limitations": [
+          "Use user-provided vendor/model to refine target and available intrinsics before generating final operator code."
+        ],
+        "optimization_decision_points": [
+          "Most portable family: start with T.Kernel/T.Parallel and add device-specific vectorization/coalescing only after target selection.",
+          "Use annotate_restrict_buffers when aliasing may affect generated code."
+        ]
+      }
+    },
+    {
+      "capability_id": "lowering_or_codegen_related_components",
+      "summary": "Understand and debug TileLang lowering, codegen, pass config, and backend-specific constraints.",
+      "primary_symbols": [
+        "tilelang.lower",
+        "PassConfigKey",
+        "tl.transform.LowerTileOp",
+        "tl.transform.LayoutInference",
+        "tl.transform.InjectSoftwarePipeline",
+        "tl.transform.LowerHopperIntrin",
+        "tl.transform.LowerPTXAsyncCopy"
+      ],
+      "related_modules": [
+        "tilelang/engine/lower.py",
+        "tilelang/transform/__init__.py",
+        "tilelang/transform/pass_config.py",
+        "src/transform",
+        "docs/compiler_internals"
+      ],
+      "related_patterns": [
+        "pattern.gemm.basic_tiled",
+        "pattern.attention.flash_mha_forward",
+        "pattern.gemm.explicit_async_tensorcore"
+      ],
+      "when_to_use": "Use only after pattern/API layers are insufficient or compiler behavior must be explained.",
+      "common_pitfalls": [
+        "Many symbols are internal transform passes.",
+        "Static graph edges may be inferred from pass names/tests.",
+        "Backend availability and architecture influence behavior."
+      ],
+      "confidence": 0.82,
+      "evidence": [
+        {
+          "file_path": "tilelang/engine/lower.py",
+          "line": 271,
+          "kind": "source"
+        },
+        {
+          "file_path": "tilelang/transform/__init__.py",
+          "line": 44,
+          "kind": "source"
+        },
+        {
+          "file_path": "docs/tutorials/debug_tools_for_tilelang.md",
+          "line": 52,
+          "kind": "source"
+        }
+      ],
+      "device_adaptation": {
+        "schema": {
+          "field_version": "device-adaptation-v1",
+          "expected_user_device_input": {
+            "vendor": "required, e.g. NVIDIA/AMD/Intel/Apple/CPU/other",
+            "model": "required when available, e.g. A100/H100/B100/MI300X/MI350/M2/EPYC",
+            "optional_arch": "CUDA sm_XX, AMD gfxXXX, LLVM mcpu, or TVM target tag"
+          },
+          "target_selection_order": [
+            "Use exact model/arch when supplied, e.g. cuda -arch=sm_90 or hip -mcpu=gfx950.",
+            "If only vendor is supplied, choose documented base target: cuda, hip, metal, llvm/c, or webgpu.",
+            "If no device is supplied, keep target auto but avoid architecture-specific intrinsics in generated code."
+          ],
+          "canonical_targets": {
+            "nvidia_cuda": [
+              "cuda",
+              "cuda -arch=sm_80",
+              "cuda -arch=sm_90",
+              "cuda -arch=sm_100a",
+              "cutedsl"
+            ],
+            "amd_hip": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "cpu": [
+              "llvm",
+              "c"
+            ],
+            "apple_metal": [
+              "metal"
+            ],
+            "webgpu": [
+              "webgpu"
+            ]
+          },
+          "evidence": [
+            {
+              "file_path": "docs/get_started/targets.md",
+              "line": 11,
+              "note": "target table and examples"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cuda.py",
+              "line": 18,
+              "note": "CUDA arch classification"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cdna.py",
+              "line": 7,
+              "note": "CDNA/gfx950 LDS information"
+            },
+            {
+              "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+              "line": 1,
+              "note": "CPU GEMM scalar path tests"
+            }
+          ]
+        },
+        "vendor_notes": {
+          "nvidia_cuda": {
+            "applicability": "Primary GPU path for most examples and advanced tensor-core features.",
+            "target_examples": [
+              "cuda",
+              "cuda -arch=sm_80 for A100/A30",
+              "cuda -arch=sm_89 for RTX 4090/Ada",
+              "cuda -arch=sm_90 for H100/Hopper",
+              "cuda -arch=sm_100a for B100/Blackwell where supported"
+            ],
+            "optimization_notes": [
+              "Use tensor-core GEMM for fp16/bf16/int8/int4 where the architecture supports it.",
+              "Ampere-class sm_80+ has MMA support in carver arch helpers.",
+              "Hopper sm_90 enables WGMMA/TMA-related paths; explicit WGMMA requires manual waits.",
+              "Blackwell sm100/sm100a paths may use TCGEN05/TMEM/2CTA features; require matching target and cluster settings.",
+              "Use T.Pipelined and shared-memory staging for GEMM/attention memory-compute overlap."
+            ],
+            "limits": [
+              "Architecture-specific intrinsics can fail compilation if the target does not support them.",
+              "Runtime tensors must be on the same CUDA device as the compiled kernel."
+            ],
+            "confidence": 0.9,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 17
+              },
+              {
+                "file_path": "tilelang/carver/arch/cuda.py",
+                "line": 18
+              },
+              {
+                "file_path": "testing/python/language/test_tilelang_language_wgmma_gemm.py",
+                "line": 24
+              },
+              {
+                "file_path": "src/transform/lower_blackwell_2sm.cc",
+                "line": 2
+              }
+            ]
+          },
+          "amd_hip": {
+            "applicability": "ROCm/HIP target path for AMD GPUs; examples under examples/amd and CDNA architecture helpers indicate supported tuning context.",
+            "target_examples": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "optimization_notes": [
+              "Prefer HIP target and CDNA-aware tile sizes when running on AMD accelerators.",
+              "Account for LDS/shared memory capacity; gfx950 has a 160KB LDS override in arch helpers.",
+              "T.gemm exposes k_pack noted as ROCm-specific in gemm_op.py.",
+              "Avoid CUDA-only WGMMA/TCGEN/TMA assumptions unless a HIP lowering path is explicitly present."
+            ],
+            "limits": [
+              "Some examples and advanced intrinsics are NVIDIA-specific.",
+              "Device model to exact gfx target should be supplied by user or runtime tooling."
+            ],
+            "confidence": 0.78,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 19
+              },
+              {
+                "file_path": "tilelang/carver/arch/cdna.py",
+                "line": 7
+              },
+              {
+                "file_path": "tilelang/language/gemm_op.py",
+                "line": 157
+              },
+              {
+                "file_path": "examples/amd/example_amd_flash_attn_fwd.py",
+                "line": 1
+              }
+            ]
+          },
+          "cpu": {
+            "applicability": "CPU/LLVM/C path for validation, scalar codegen, or non-GPU execution.",
+            "target_examples": [
+              "llvm",
+              "c"
+            ],
+            "optimization_notes": [
+              "Use T.Kernel(..., is_cpu=True) for CPU kernel frames.",
+              "Do not rely on GPU thread bindings, shared memory semantics, cp.async, WGMMA, TMA, or tensor-core paths.",
+              "Useful for correctness/codegen checks; performance strategy differs from GPU tiling."
+            ],
+            "limits": [
+              "Many GPU-optimized examples assume CUDA tensors and are not directly portable.",
+              "CPU arch helper intentionally stores minimal detail."
+            ],
+            "confidence": 0.82,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+                "line": 1
+              },
+              {
+                "file_path": "tilelang/carver/arch/cpu.py",
+                "line": 8
+              }
+            ]
+          },
+          "apple_metal_webgpu": {
+            "applicability": "Documented targets for Apple Metal and WebGPU/browser runtimes; suitable only for patterns avoiding CUDA/HIP-specific intrinsics unless tests show support.",
+            "target_examples": [
+              "metal",
+              "webgpu"
+            ],
+            "optimization_notes": [
+              "Favor generic T.Kernel/T.Parallel/T.copy style and avoid tensor-core-specific or CUDA barrier APIs.",
+              "Treat memory scope and vectorization assumptions as target-specific until validated."
+            ],
+            "limits": [
+              "The current operator-development examples are much richer for CUDA/HIP than Metal/WebGPU.",
+              "Advanced GEMM/attention tensor-core patterns have low confidence on these targets."
+            ],
+            "confidence": 0.55,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/metal/test_metal_codegen.py",
+                "line": 1
+              },
+              {
+                "file_path": "testing/python/webgpu/test_webgpu_codegen.py",
+                "line": 1
+              }
+            ]
+          }
+        },
+        "model_resolution_required": true,
+        "confidence": 0.75,
+        "limitations": [
+          "Use user-provided vendor/model to refine target and available intrinsics before generating final operator code."
+        ],
+        "optimization_decision_points": [
+          "Use pass_configs based on target: disable WGMMA/TMA/vectorization only for diagnosed target issues.",
+          "Use generated source and transform tests to verify architecture-specific lowering."
+        ]
+      }
+    },
+    {
+      "capability_id": "testing_and_validation_support",
+      "summary": "Run correctness checks, benchmarks, host checks, profiler, and regression examples.",
+      "primary_symbols": [
+        "Profiler",
+        "Profiler.assert_allclose",
+        "Profiler.do_bench",
+        "JITKernel.get_profiler",
+        "torch.testing.assert_close",
+        "tilelang.testing"
+      ],
+      "related_modules": [
+        "tilelang/profiler",
+        "testing/python",
+        "examples/*/test_*.py",
+        "maint/host_checks"
+      ],
+      "related_patterns": [
+        "pattern.autotune.kernel_config_search"
+      ],
+      "when_to_use": "Use before finalizing an operator implementation and when selecting benchmark/tolerance strategy.",
+      "common_pitfalls": [
+        "Hardware-dependent tests may require CUDA/HIP/CPU targets.",
+        "FP16/FP8/int4 tolerances differ from fp32.",
+        "Profiler tensor supply must match dynamic symbols."
+      ],
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "tilelang/profiler/__init__.py",
+          "line": 21,
+          "kind": "source"
+        },
+        {
+          "file_path": "examples/quickstart.py",
+          "line": 75,
+          "kind": "source"
+        }
+      ],
+      "device_adaptation": {
+        "schema": {
+          "field_version": "device-adaptation-v1",
+          "expected_user_device_input": {
+            "vendor": "required, e.g. NVIDIA/AMD/Intel/Apple/CPU/other",
+            "model": "required when available, e.g. A100/H100/B100/MI300X/MI350/M2/EPYC",
+            "optional_arch": "CUDA sm_XX, AMD gfxXXX, LLVM mcpu, or TVM target tag"
+          },
+          "target_selection_order": [
+            "Use exact model/arch when supplied, e.g. cuda -arch=sm_90 or hip -mcpu=gfx950.",
+            "If only vendor is supplied, choose documented base target: cuda, hip, metal, llvm/c, or webgpu.",
+            "If no device is supplied, keep target auto but avoid architecture-specific intrinsics in generated code."
+          ],
+          "canonical_targets": {
+            "nvidia_cuda": [
+              "cuda",
+              "cuda -arch=sm_80",
+              "cuda -arch=sm_90",
+              "cuda -arch=sm_100a",
+              "cutedsl"
+            ],
+            "amd_hip": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "cpu": [
+              "llvm",
+              "c"
+            ],
+            "apple_metal": [
+              "metal"
+            ],
+            "webgpu": [
+              "webgpu"
+            ]
+          },
+          "evidence": [
+            {
+              "file_path": "docs/get_started/targets.md",
+              "line": 11,
+              "note": "target table and examples"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cuda.py",
+              "line": 18,
+              "note": "CUDA arch classification"
+            },
+            {
+              "file_path": "tilelang/carver/arch/cdna.py",
+              "line": 7,
+              "note": "CDNA/gfx950 LDS information"
+            },
+            {
+              "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+              "line": 1,
+              "note": "CPU GEMM scalar path tests"
+            }
+          ]
+        },
+        "vendor_notes": {
+          "nvidia_cuda": {
+            "applicability": "Primary GPU path for most examples and advanced tensor-core features.",
+            "target_examples": [
+              "cuda",
+              "cuda -arch=sm_80 for A100/A30",
+              "cuda -arch=sm_89 for RTX 4090/Ada",
+              "cuda -arch=sm_90 for H100/Hopper",
+              "cuda -arch=sm_100a for B100/Blackwell where supported"
+            ],
+            "optimization_notes": [
+              "Use tensor-core GEMM for fp16/bf16/int8/int4 where the architecture supports it.",
+              "Ampere-class sm_80+ has MMA support in carver arch helpers.",
+              "Hopper sm_90 enables WGMMA/TMA-related paths; explicit WGMMA requires manual waits.",
+              "Blackwell sm100/sm100a paths may use TCGEN05/TMEM/2CTA features; require matching target and cluster settings.",
+              "Use T.Pipelined and shared-memory staging for GEMM/attention memory-compute overlap."
+            ],
+            "limits": [
+              "Architecture-specific intrinsics can fail compilation if the target does not support them.",
+              "Runtime tensors must be on the same CUDA device as the compiled kernel."
+            ],
+            "confidence": 0.9,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 17
+              },
+              {
+                "file_path": "tilelang/carver/arch/cuda.py",
+                "line": 18
+              },
+              {
+                "file_path": "testing/python/language/test_tilelang_language_wgmma_gemm.py",
+                "line": 24
+              },
+              {
+                "file_path": "src/transform/lower_blackwell_2sm.cc",
+                "line": 2
+              }
+            ]
+          },
+          "amd_hip": {
+            "applicability": "ROCm/HIP target path for AMD GPUs; examples under examples/amd and CDNA architecture helpers indicate supported tuning context.",
+            "target_examples": [
+              "hip",
+              "hip -mcpu=gfx90a",
+              "hip -mcpu=gfx940",
+              "hip -mcpu=gfx950"
+            ],
+            "optimization_notes": [
+              "Prefer HIP target and CDNA-aware tile sizes when running on AMD accelerators.",
+              "Account for LDS/shared memory capacity; gfx950 has a 160KB LDS override in arch helpers.",
+              "T.gemm exposes k_pack noted as ROCm-specific in gemm_op.py.",
+              "Avoid CUDA-only WGMMA/TCGEN/TMA assumptions unless a HIP lowering path is explicitly present."
+            ],
+            "limits": [
+              "Some examples and advanced intrinsics are NVIDIA-specific.",
+              "Device model to exact gfx target should be supplied by user or runtime tooling."
+            ],
+            "confidence": 0.78,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 19
+              },
+              {
+                "file_path": "tilelang/carver/arch/cdna.py",
+                "line": 7
+              },
+              {
+                "file_path": "tilelang/language/gemm_op.py",
+                "line": 157
+              },
+              {
+                "file_path": "examples/amd/example_amd_flash_attn_fwd.py",
+                "line": 1
+              }
+            ]
+          },
+          "cpu": {
+            "applicability": "CPU/LLVM/C path for validation, scalar codegen, or non-GPU execution.",
+            "target_examples": [
+              "llvm",
+              "c"
+            ],
+            "optimization_notes": [
+              "Use T.Kernel(..., is_cpu=True) for CPU kernel frames.",
+              "Do not rely on GPU thread bindings, shared memory semantics, cp.async, WGMMA, TMA, or tensor-core paths.",
+              "Useful for correctness/codegen checks; performance strategy differs from GPU tiling."
+            ],
+            "limits": [
+              "Many GPU-optimized examples assume CUDA tensors and are not directly portable.",
+              "CPU arch helper intentionally stores minimal detail."
+            ],
+            "confidence": 0.82,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+                "line": 1
+              },
+              {
+                "file_path": "tilelang/carver/arch/cpu.py",
+                "line": 8
+              }
+            ]
+          },
+          "apple_metal_webgpu": {
+            "applicability": "Documented targets for Apple Metal and WebGPU/browser runtimes; suitable only for patterns avoiding CUDA/HIP-specific intrinsics unless tests show support.",
+            "target_examples": [
+              "metal",
+              "webgpu"
+            ],
+            "optimization_notes": [
+              "Favor generic T.Kernel/T.Parallel/T.copy style and avoid tensor-core-specific or CUDA barrier APIs.",
+              "Treat memory scope and vectorization assumptions as target-specific until validated."
+            ],
+            "limits": [
+              "The current operator-development examples are much richer for CUDA/HIP than Metal/WebGPU.",
+              "Advanced GEMM/attention tensor-core patterns have low confidence on these targets."
+            ],
+            "confidence": 0.55,
+            "evidence": [
+              {
+                "file_path": "docs/get_started/targets.md",
+                "line": 20
+              },
+              {
+                "file_path": "testing/python/metal/test_metal_codegen.py",
+                "line": 1
+              },
+              {
+                "file_path": "testing/python/webgpu/test_webgpu_codegen.py",
+                "line": 1
+              }
+            ]
+          }
+        },
+        "model_resolution_required": true,
+        "confidence": 0.75,
+        "limitations": [
+          "Use user-provided vendor/model to refine target and available intrinsics before generating final operator code."
+        ],
+        "optimization_decision_points": [
+          "Choose tensors on matching device and target.",
+          "Use CUDA profiler backends only for CUDA.",
+          "For dynamic shapes or metadata inputs, provide input_tensors to profiler."
+        ]
+      }
+    }
+  ],
+  "device_integration_schema": {
+    "field_version": "device-adaptation-v1",
+    "expected_user_device_input": {
+      "vendor": "required, e.g. NVIDIA/AMD/Intel/Apple/CPU/other",
+      "model": "required when available, e.g. A100/H100/B100/MI300X/MI350/M2/EPYC",
+      "optional_arch": "CUDA sm_XX, AMD gfxXXX, LLVM mcpu, or TVM target tag"
+    },
+    "target_selection_order": [
+      "Use exact model/arch when supplied, e.g. cuda -arch=sm_90 or hip -mcpu=gfx950.",
+      "If only vendor is supplied, choose documented base target: cuda, hip, metal, llvm/c, or webgpu.",
+      "If no device is supplied, keep target auto but avoid architecture-specific intrinsics in generated code."
+    ],
+    "canonical_targets": {
+      "nvidia_cuda": [
+        "cuda",
+        "cuda -arch=sm_80",
+        "cuda -arch=sm_90",
+        "cuda -arch=sm_100a",
+        "cutedsl"
+      ],
+      "amd_hip": [
+        "hip",
+        "hip -mcpu=gfx90a",
+        "hip -mcpu=gfx940",
+        "hip -mcpu=gfx950"
+      ],
+      "cpu": [
+        "llvm",
+        "c"
+      ],
+      "apple_metal": [
+        "metal"
+      ],
+      "webgpu": [
+        "webgpu"
+      ]
+    },
+    "evidence": [
+      {
+        "file_path": "docs/get_started/targets.md",
+        "line": 11,
+        "note": "target table and examples"
+      },
+      {
+        "file_path": "tilelang/carver/arch/cuda.py",
+        "line": 18,
+        "note": "CUDA arch classification"
+      },
+      {
+        "file_path": "tilelang/carver/arch/cdna.py",
+        "line": 7,
+        "note": "CDNA/gfx950 LDS information"
+      },
+      {
+        "file_path": "testing/python/cpu/test_tilelang_cpu_tgemm.py",
+        "line": 1,
+        "note": "CPU GEMM scalar path tests"
+      }
+    ]
+  },
+  "device_profile_usage": "When user supplies vendor/model, resolve target first, then use capability.device_adaptation to choose pattern/API/source fallback constraints."
+}

@@ -1,0 +1,2527 @@
+{
+  "nodes": [
+    {
+      "id": "kernel_construction",
+      "type": "capability",
+      "label": "kernel_construction"
+    },
+    {
+      "id": "memory_movement",
+      "type": "capability",
+      "label": "memory_movement"
+    },
+    {
+      "id": "tiling_and_schedule",
+      "type": "capability",
+      "label": "tiling_and_schedule"
+    },
+    {
+      "id": "pipelining",
+      "type": "capability",
+      "label": "pipelining"
+    },
+    {
+      "id": "tensor_intrinsics",
+      "type": "capability",
+      "label": "tensor_intrinsics"
+    },
+    {
+      "id": "reductions",
+      "type": "capability",
+      "label": "reductions"
+    },
+    {
+      "id": "gemm_like_patterns",
+      "type": "capability",
+      "label": "gemm_like_patterns"
+    },
+    {
+      "id": "attention_like_patterns",
+      "type": "capability",
+      "label": "attention_like_patterns"
+    },
+    {
+      "id": "convolution_like_patterns",
+      "type": "capability",
+      "label": "convolution_like_patterns"
+    },
+    {
+      "id": "elementwise_and_fusion_patterns",
+      "type": "capability",
+      "label": "elementwise_and_fusion_patterns"
+    },
+    {
+      "id": "lowering_or_codegen_related_components",
+      "type": "capability",
+      "label": "lowering_or_codegen_related_components"
+    },
+    {
+      "id": "testing_and_validation_support",
+      "type": "capability",
+      "label": "testing_and_validation_support"
+    },
+    {
+      "id": "pattern.gemm.basic_tiled",
+      "type": "pattern",
+      "label": "Basic tiled GEMM",
+      "attrs": {
+        "category": "gemm"
+      }
+    },
+    {
+      "id": "pattern.gemm.split_k_atomic",
+      "type": "pattern",
+      "label": "Split-K GEMM with atomic accumulation",
+      "attrs": {
+        "category": "gemm"
+      }
+    },
+    {
+      "id": "pattern.gemm.sparse_2_4",
+      "type": "pattern",
+      "label": "2:4 sparse GEMM",
+      "attrs": {
+        "category": "gemm"
+      }
+    },
+    {
+      "id": "pattern.attention.flash_mha_forward",
+      "type": "pattern",
+      "label": "Flash attention forward",
+      "attrs": {
+        "category": "attention"
+      }
+    },
+    {
+      "id": "pattern.attention.decode_paged",
+      "type": "pattern",
+      "label": "Paged/decode attention",
+      "attrs": {
+        "category": "attention"
+      }
+    },
+    {
+      "id": "pattern.reduction.online_softmax",
+      "type": "pattern",
+      "label": "Online softmax/reduction",
+      "attrs": {
+        "category": "reduction"
+      }
+    },
+    {
+      "id": "pattern.conv.im2col_gemm",
+      "type": "pattern",
+      "label": "Convolution via tiled loops/im2col",
+      "attrs": {
+        "category": "convolution"
+      }
+    },
+    {
+      "id": "pattern.elementwise.parallel_tile",
+      "type": "pattern",
+      "label": "Elementwise/fusion tile",
+      "attrs": {
+        "category": "elementwise"
+      }
+    },
+    {
+      "id": "pattern.topk.selection",
+      "type": "pattern",
+      "label": "Top-k selection kernel",
+      "attrs": {
+        "category": "selection"
+      }
+    },
+    {
+      "id": "pattern.autotune.kernel_config_search",
+      "type": "pattern",
+      "label": "Autotuned kernel configuration search",
+      "attrs": {
+        "category": "tuning"
+      }
+    },
+    {
+      "id": "tilelang.jit.jit",
+      "type": "symbol",
+      "label": "jit",
+      "attrs": {
+        "qualified_name": "tilelang.jit.jit"
+      }
+    },
+    {
+      "id": "tilelang.language.kernel.Kernel",
+      "type": "symbol",
+      "label": "Kernel",
+      "attrs": {
+        "qualified_name": "tilelang.language.kernel.Kernel"
+      }
+    },
+    {
+      "id": "tilelang.language.copy_op.copy",
+      "type": "symbol",
+      "label": "copy",
+      "attrs": {
+        "qualified_name": "tilelang.language.copy_op.copy"
+      }
+    },
+    {
+      "id": "tilelang.language.copy_op.async_copy",
+      "type": "symbol",
+      "label": "async_copy",
+      "attrs": {
+        "qualified_name": "tilelang.language.copy_op.async_copy"
+      }
+    },
+    {
+      "id": "tilelang.language.copy_op.tma_copy",
+      "type": "symbol",
+      "label": "tma_copy",
+      "attrs": {
+        "qualified_name": "tilelang.language.copy_op.tma_copy"
+      }
+    },
+    {
+      "id": "tilelang.language.gemm_op.gemm",
+      "type": "symbol",
+      "label": "gemm",
+      "attrs": {
+        "qualified_name": "tilelang.language.gemm_op.gemm"
+      }
+    },
+    {
+      "id": "tilelang.language.gemm_op.wgmma_gemm",
+      "type": "symbol",
+      "label": "wgmma_gemm",
+      "attrs": {
+        "qualified_name": "tilelang.language.gemm_op.wgmma_gemm"
+      }
+    },
+    {
+      "id": "tilelang.language.gemm_op.tcgen05_gemm",
+      "type": "symbol",
+      "label": "tcgen05_gemm",
+      "attrs": {
+        "qualified_name": "tilelang.language.gemm_op.tcgen05_gemm"
+      }
+    },
+    {
+      "id": "tilelang.language.reduce_op.reduce_sum",
+      "type": "symbol",
+      "label": "reduce_sum",
+      "attrs": {
+        "qualified_name": "tilelang.language.reduce_op.reduce_sum"
+      }
+    },
+    {
+      "id": "tilelang.language.loop.Pipelined",
+      "type": "symbol",
+      "label": "Pipelined",
+      "attrs": {
+        "qualified_name": "tilelang.language.loop.Pipelined"
+      }
+    },
+    {
+      "id": "tilelang.language.loop.Parallel",
+      "type": "symbol",
+      "label": "Parallel",
+      "attrs": {
+        "qualified_name": "tilelang.language.loop.Parallel"
+      }
+    },
+    {
+      "id": "tilelang.language.allocate.alloc_shared",
+      "type": "symbol",
+      "label": "alloc_shared",
+      "attrs": {
+        "qualified_name": "tilelang.language.allocate.alloc_shared"
+      }
+    },
+    {
+      "id": "tilelang.language.allocate.alloc_fragment",
+      "type": "symbol",
+      "label": "alloc_fragment",
+      "attrs": {
+        "qualified_name": "tilelang.language.allocate.alloc_fragment"
+      }
+    },
+    {
+      "id": "tilelang.layout.layout.Layout",
+      "type": "symbol",
+      "label": "Layout",
+      "attrs": {
+        "qualified_name": "tilelang.layout.layout.Layout"
+      }
+    },
+    {
+      "id": "tilelang.layout.fragment.Fragment",
+      "type": "symbol",
+      "label": "Fragment",
+      "attrs": {
+        "qualified_name": "tilelang.layout.fragment.Fragment"
+      }
+    },
+    {
+      "id": "tilelang.tileop.base.GemmWarpPolicy",
+      "type": "symbol",
+      "label": "GemmWarpPolicy",
+      "attrs": {
+        "qualified_name": "tilelang.tileop.base.GemmWarpPolicy"
+      }
+    },
+    {
+      "id": "tilelang.engine.lower.lower",
+      "type": "symbol",
+      "label": "lower",
+      "attrs": {
+        "qualified_name": "tilelang.engine.lower.lower"
+      }
+    },
+    {
+      "id": "tilelang.profiler.Profiler",
+      "type": "symbol",
+      "label": "Profiler",
+      "attrs": {
+        "qualified_name": "tilelang.profiler.Profiler"
+      }
+    },
+    {
+      "id": "tilelang.language",
+      "type": "module",
+      "label": "tilelang.language"
+    },
+    {
+      "id": "tilelang.jit",
+      "type": "module",
+      "label": "tilelang.jit"
+    },
+    {
+      "id": "tilelang.engine",
+      "type": "module",
+      "label": "tilelang.engine"
+    },
+    {
+      "id": "tilelang.transform",
+      "type": "module",
+      "label": "tilelang.transform"
+    },
+    {
+      "id": "tilelang.layout",
+      "type": "module",
+      "label": "tilelang.layout"
+    },
+    {
+      "id": "examples.gemm",
+      "type": "module",
+      "label": "examples.gemm"
+    },
+    {
+      "id": "examples.flash_attention",
+      "type": "module",
+      "label": "examples.flash_attention"
+    },
+    {
+      "id": "examples.convolution",
+      "type": "module",
+      "label": "examples.convolution"
+    },
+    {
+      "id": "examples.elementwise",
+      "type": "module",
+      "label": "examples.elementwise"
+    },
+    {
+      "id": "testing.python",
+      "type": "module",
+      "label": "testing.python"
+    },
+    {
+      "id": "examples.quickstart.py",
+      "type": "source_group",
+      "label": "examples.quickstart.py"
+    },
+    {
+      "id": "README.md",
+      "type": "source_group",
+      "label": "README.md"
+    },
+    {
+      "id": "examples.gemm_splitk",
+      "type": "source_group",
+      "label": "examples.gemm_splitk"
+    },
+    {
+      "id": "examples.sparse_tensorcore",
+      "type": "source_group",
+      "label": "examples.sparse_tensorcore"
+    },
+    {
+      "id": "docs.deeplearning_operators",
+      "type": "source_group",
+      "label": "docs.deeplearning_operators"
+    },
+    {
+      "id": "benchmark.matmul",
+      "type": "source_group",
+      "label": "benchmark.matmul"
+    },
+    {
+      "id": "examples.online_softmax",
+      "type": "source_group",
+      "label": "examples.online_softmax"
+    },
+    {
+      "id": "examples.flash_decoding",
+      "type": "source_group",
+      "label": "examples.flash_decoding"
+    },
+    {
+      "id": "examples.deepseek_mla",
+      "type": "source_group",
+      "label": "examples.deepseek_mla"
+    },
+    {
+      "id": "examples.topk",
+      "type": "source_group",
+      "label": "examples.topk"
+    },
+    {
+      "id": "docs.programming_guides",
+      "type": "source_group",
+      "label": "docs.programming_guides"
+    },
+    {
+      "id": "pattern.gemm.dequantized_low_bit",
+      "type": "pattern",
+      "label": "Dequantized low-bit GEMM",
+      "attrs": {
+        "category": "gemm"
+      }
+    },
+    {
+      "id": "pattern.gemm.grouped_moe",
+      "type": "pattern",
+      "label": "Grouped GEMM / MoE-style batched groups",
+      "attrs": {
+        "category": "gemm"
+      }
+    },
+    {
+      "id": "pattern.norm.rms_norm",
+      "type": "pattern",
+      "label": "RMSNorm / normalization reduction",
+      "attrs": {
+        "category": "reduction"
+      }
+    },
+    {
+      "id": "pattern.dynamic_shape.symbolic_gemm",
+      "type": "pattern",
+      "label": "Dynamic-shape symbolic GEMM",
+      "attrs": {
+        "category": "shape"
+      }
+    },
+    {
+      "id": "pattern.gemm.explicit_async_tensorcore",
+      "type": "pattern",
+      "label": "Explicit WGMMA / TCGEN asynchronous GEMM",
+      "attrs": {
+        "category": "gemm"
+      }
+    },
+    {
+      "id": "device.nvidia_cuda",
+      "type": "device_family",
+      "label": "NVIDIA CUDA",
+      "attrs": {
+        "targets": [
+          "cuda",
+          "cuda -arch=sm_80 for A100/A30",
+          "cuda -arch=sm_89 for RTX 4090/Ada",
+          "cuda -arch=sm_90 for H100/Hopper",
+          "cuda -arch=sm_100a for B100/Blackwell where supported"
+        ]
+      }
+    },
+    {
+      "id": "device.amd_hip",
+      "type": "device_family",
+      "label": "AMD HIP/CDNA",
+      "attrs": {
+        "targets": [
+          "hip",
+          "hip -mcpu=gfx90a",
+          "hip -mcpu=gfx940",
+          "hip -mcpu=gfx950"
+        ]
+      }
+    },
+    {
+      "id": "device.cpu",
+      "type": "device_family",
+      "label": "CPU/LLVM/C",
+      "attrs": {
+        "targets": [
+          "llvm",
+          "c"
+        ]
+      }
+    },
+    {
+      "id": "device.metal_webgpu",
+      "type": "device_family",
+      "label": "Metal/WebGPU",
+      "attrs": {
+        "targets": [
+          "metal",
+          "webgpu"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "kernel_construction",
+      "target": "pattern.gemm.basic_tiled",
+      "edge_type": "enables",
+      "confidence": 0.96,
+      "evidence": [
+        {
+          "file_path": "tilelang/jit/__init__.py",
+          "line": 480,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "kernel_construction",
+      "target": "pattern.elementwise.parallel_tile",
+      "edge_type": "enables",
+      "confidence": 0.96,
+      "evidence": [
+        {
+          "file_path": "tilelang/jit/__init__.py",
+          "line": 480,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "kernel_construction",
+      "target": "tilelang.jit.jit",
+      "edge_type": "uses_symbol",
+      "confidence": 0.96,
+      "evidence": [
+        {
+          "file_path": "tilelang/jit/__init__.py",
+          "line": 480,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "kernel_construction",
+      "target": "tilelang.language.kernel.Kernel",
+      "edge_type": "uses_symbol",
+      "confidence": 0.96,
+      "evidence": [
+        {
+          "file_path": "tilelang/jit/__init__.py",
+          "line": 480,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "memory_movement",
+      "target": "pattern.gemm.basic_tiled",
+      "edge_type": "enables",
+      "confidence": 0.94,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/copy_op.py",
+          "line": 51,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "memory_movement",
+      "target": "pattern.attention.flash_mha_forward",
+      "edge_type": "enables",
+      "confidence": 0.94,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/copy_op.py",
+          "line": 51,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "memory_movement",
+      "target": "pattern.elementwise.parallel_tile",
+      "edge_type": "enables",
+      "confidence": 0.94,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/copy_op.py",
+          "line": 51,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "memory_movement",
+      "target": "tilelang.language.copy_op.copy",
+      "edge_type": "uses_symbol",
+      "confidence": 0.94,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/copy_op.py",
+          "line": 51,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "memory_movement",
+      "target": "tilelang.language.copy_op.async_copy",
+      "edge_type": "uses_symbol",
+      "confidence": 0.94,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/copy_op.py",
+          "line": 51,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "memory_movement",
+      "target": "tilelang.language.copy_op.tma_copy",
+      "edge_type": "uses_symbol",
+      "confidence": 0.94,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/copy_op.py",
+          "line": 51,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "memory_movement",
+      "target": "tilelang.language.allocate.alloc_shared",
+      "edge_type": "uses_symbol",
+      "confidence": 0.94,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/copy_op.py",
+          "line": 51,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "tiling_and_schedule",
+      "target": "pattern.gemm.basic_tiled",
+      "edge_type": "enables",
+      "confidence": 0.92,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/loop.py",
+          "line": 13,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "tiling_and_schedule",
+      "target": "pattern.attention.flash_mha_forward",
+      "edge_type": "enables",
+      "confidence": 0.92,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/loop.py",
+          "line": 13,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "tiling_and_schedule",
+      "target": "pattern.autotune.kernel_config_search",
+      "edge_type": "enables",
+      "confidence": 0.92,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/loop.py",
+          "line": 13,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "tiling_and_schedule",
+      "target": "tilelang.language.loop.Parallel",
+      "edge_type": "uses_symbol",
+      "confidence": 0.92,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/loop.py",
+          "line": 13,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "tiling_and_schedule",
+      "target": "tilelang.language.loop.Pipelined",
+      "edge_type": "uses_symbol",
+      "confidence": 0.92,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/loop.py",
+          "line": 13,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pipelining",
+      "target": "pattern.gemm.basic_tiled",
+      "edge_type": "enables",
+      "confidence": 0.86,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/loop.py",
+          "line": 112,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pipelining",
+      "target": "pattern.attention.flash_mha_forward",
+      "edge_type": "enables",
+      "confidence": 0.86,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/loop.py",
+          "line": 112,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pipelining",
+      "target": "pattern.conv.im2col_gemm",
+      "edge_type": "enables",
+      "confidence": 0.86,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/loop.py",
+          "line": 112,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pipelining",
+      "target": "tilelang.language.loop.Pipelined",
+      "edge_type": "uses_symbol",
+      "confidence": 0.86,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/loop.py",
+          "line": 112,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pipelining",
+      "target": "tilelang.language.copy_op.async_copy",
+      "edge_type": "uses_symbol",
+      "confidence": 0.86,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/loop.py",
+          "line": 112,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "tensor_intrinsics",
+      "target": "pattern.gemm.basic_tiled",
+      "edge_type": "enables",
+      "confidence": 0.94,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/gemm_op.py",
+          "line": 148,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "tensor_intrinsics",
+      "target": "pattern.gemm.sparse_2_4",
+      "edge_type": "enables",
+      "confidence": 0.94,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/gemm_op.py",
+          "line": 148,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "tensor_intrinsics",
+      "target": "pattern.attention.flash_mha_forward",
+      "edge_type": "enables",
+      "confidence": 0.94,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/gemm_op.py",
+          "line": 148,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "tensor_intrinsics",
+      "target": "tilelang.language.gemm_op.gemm",
+      "edge_type": "uses_symbol",
+      "confidence": 0.94,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/gemm_op.py",
+          "line": 148,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "tensor_intrinsics",
+      "target": "tilelang.language.gemm_op.wgmma_gemm",
+      "edge_type": "uses_symbol",
+      "confidence": 0.94,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/gemm_op.py",
+          "line": 148,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "tensor_intrinsics",
+      "target": "tilelang.language.gemm_op.tcgen05_gemm",
+      "edge_type": "uses_symbol",
+      "confidence": 0.94,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/gemm_op.py",
+          "line": 148,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "reductions",
+      "target": "pattern.reduction.online_softmax",
+      "edge_type": "enables",
+      "confidence": 0.92,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/reduce_op.py",
+          "line": 25,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "reductions",
+      "target": "pattern.attention.flash_mha_forward",
+      "edge_type": "enables",
+      "confidence": 0.92,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/reduce_op.py",
+          "line": 25,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "reductions",
+      "target": "pattern.topk.selection",
+      "edge_type": "enables",
+      "confidence": 0.92,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/reduce_op.py",
+          "line": 25,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "reductions",
+      "target": "tilelang.language.reduce_op.reduce_sum",
+      "edge_type": "uses_symbol",
+      "confidence": 0.92,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/reduce_op.py",
+          "line": 25,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "gemm_like_patterns",
+      "target": "pattern.gemm.basic_tiled",
+      "edge_type": "enables",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "examples/gemm/example_gemm.py",
+          "line": 22,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "gemm_like_patterns",
+      "target": "pattern.gemm.split_k_atomic",
+      "edge_type": "enables",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "examples/gemm/example_gemm.py",
+          "line": 22,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "gemm_like_patterns",
+      "target": "pattern.gemm.sparse_2_4",
+      "edge_type": "enables",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "examples/gemm/example_gemm.py",
+          "line": 22,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "gemm_like_patterns",
+      "target": "pattern.autotune.kernel_config_search",
+      "edge_type": "enables",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "examples/gemm/example_gemm.py",
+          "line": 22,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "gemm_like_patterns",
+      "target": "tilelang.language.gemm_op.gemm",
+      "edge_type": "uses_symbol",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "examples/gemm/example_gemm.py",
+          "line": 22,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "gemm_like_patterns",
+      "target": "tilelang.language.loop.Pipelined",
+      "edge_type": "uses_symbol",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "examples/gemm/example_gemm.py",
+          "line": 22,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "gemm_like_patterns",
+      "target": "tilelang.language.copy_op.copy",
+      "edge_type": "uses_symbol",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "examples/gemm/example_gemm.py",
+          "line": 22,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "attention_like_patterns",
+      "target": "pattern.attention.flash_mha_forward",
+      "edge_type": "enables",
+      "confidence": 0.84,
+      "evidence": [
+        {
+          "file_path": "examples/flash_attention/example_mha_fwd_bshd.py",
+          "line": 67,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "attention_like_patterns",
+      "target": "pattern.attention.decode_paged",
+      "edge_type": "enables",
+      "confidence": 0.84,
+      "evidence": [
+        {
+          "file_path": "examples/flash_attention/example_mha_fwd_bshd.py",
+          "line": 67,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "attention_like_patterns",
+      "target": "pattern.reduction.online_softmax",
+      "edge_type": "enables",
+      "confidence": 0.84,
+      "evidence": [
+        {
+          "file_path": "examples/flash_attention/example_mha_fwd_bshd.py",
+          "line": 67,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "attention_like_patterns",
+      "target": "tilelang.language.gemm_op.gemm",
+      "edge_type": "uses_symbol",
+      "confidence": 0.84,
+      "evidence": [
+        {
+          "file_path": "examples/flash_attention/example_mha_fwd_bshd.py",
+          "line": 67,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "attention_like_patterns",
+      "target": "tilelang.language.reduce_op.reduce_sum",
+      "edge_type": "uses_symbol",
+      "confidence": 0.84,
+      "evidence": [
+        {
+          "file_path": "examples/flash_attention/example_mha_fwd_bshd.py",
+          "line": 67,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "attention_like_patterns",
+      "target": "tilelang.language.copy_op.copy",
+      "edge_type": "uses_symbol",
+      "confidence": 0.84,
+      "evidence": [
+        {
+          "file_path": "examples/flash_attention/example_mha_fwd_bshd.py",
+          "line": 67,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "attention_like_patterns",
+      "target": "tilelang.language.loop.Pipelined",
+      "edge_type": "uses_symbol",
+      "confidence": 0.84,
+      "evidence": [
+        {
+          "file_path": "examples/flash_attention/example_mha_fwd_bshd.py",
+          "line": 67,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "convolution_like_patterns",
+      "target": "pattern.conv.im2col_gemm",
+      "edge_type": "enables",
+      "confidence": 0.74,
+      "evidence": [
+        {
+          "file_path": "examples/convolution/example_convolution.py",
+          "line": 64,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "convolution_like_patterns",
+      "target": "tilelang.language.kernel.Kernel",
+      "edge_type": "uses_symbol",
+      "confidence": 0.74,
+      "evidence": [
+        {
+          "file_path": "examples/convolution/example_convolution.py",
+          "line": 64,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "convolution_like_patterns",
+      "target": "tilelang.language.copy_op.copy",
+      "edge_type": "uses_symbol",
+      "confidence": 0.74,
+      "evidence": [
+        {
+          "file_path": "examples/convolution/example_convolution.py",
+          "line": 64,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "convolution_like_patterns",
+      "target": "tilelang.language.gemm_op.gemm",
+      "edge_type": "uses_symbol",
+      "confidence": 0.74,
+      "evidence": [
+        {
+          "file_path": "examples/convolution/example_convolution.py",
+          "line": 64,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "elementwise_and_fusion_patterns",
+      "target": "pattern.elementwise.parallel_tile",
+      "edge_type": "enables",
+      "confidence": 0.86,
+      "evidence": [
+        {
+          "file_path": "examples/elementwise/example_elementwise_add.py",
+          "line": 23,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "elementwise_and_fusion_patterns",
+      "target": "pattern.reduction.online_softmax",
+      "edge_type": "enables",
+      "confidence": 0.86,
+      "evidence": [
+        {
+          "file_path": "examples/elementwise/example_elementwise_add.py",
+          "line": 23,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "elementwise_and_fusion_patterns",
+      "target": "tilelang.language.loop.Parallel",
+      "edge_type": "uses_symbol",
+      "confidence": 0.86,
+      "evidence": [
+        {
+          "file_path": "examples/elementwise/example_elementwise_add.py",
+          "line": 23,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "elementwise_and_fusion_patterns",
+      "target": "tilelang.language.copy_op.copy",
+      "edge_type": "uses_symbol",
+      "confidence": 0.86,
+      "evidence": [
+        {
+          "file_path": "examples/elementwise/example_elementwise_add.py",
+          "line": 23,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "lowering_or_codegen_related_components",
+      "target": "pattern.gemm.basic_tiled",
+      "edge_type": "enables",
+      "confidence": 0.82,
+      "evidence": [
+        {
+          "file_path": "tilelang/engine/lower.py",
+          "line": 271,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "lowering_or_codegen_related_components",
+      "target": "pattern.attention.flash_mha_forward",
+      "edge_type": "enables",
+      "confidence": 0.82,
+      "evidence": [
+        {
+          "file_path": "tilelang/engine/lower.py",
+          "line": 271,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "lowering_or_codegen_related_components",
+      "target": "tilelang.engine.lower.lower",
+      "edge_type": "uses_symbol",
+      "confidence": 0.82,
+      "evidence": [
+        {
+          "file_path": "tilelang/engine/lower.py",
+          "line": 271,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "testing_and_validation_support",
+      "target": "pattern.autotune.kernel_config_search",
+      "edge_type": "enables",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "tilelang/profiler/__init__.py",
+          "line": 21,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "testing_and_validation_support",
+      "target": "tilelang.profiler.Profiler",
+      "edge_type": "uses_symbol",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "tilelang/profiler/__init__.py",
+          "line": 21,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.gemm.basic_tiled",
+      "target": "examples.quickstart.py",
+      "edge_type": "evidenced_by",
+      "confidence": 0.96,
+      "evidence": [
+        {
+          "file_path": "examples/quickstart.py",
+          "line": 38,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.gemm.basic_tiled",
+      "target": "examples.gemm",
+      "edge_type": "evidenced_by",
+      "confidence": 0.96,
+      "evidence": [
+        {
+          "file_path": "examples/quickstart.py",
+          "line": 38,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.gemm.basic_tiled",
+      "target": "README.md",
+      "edge_type": "evidenced_by",
+      "confidence": 0.96,
+      "evidence": [
+        {
+          "file_path": "examples/quickstart.py",
+          "line": 38,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.gemm.basic_tiled",
+      "target": "tilelang.jit.jit",
+      "edge_type": "requires",
+      "confidence": 0.96,
+      "evidence": [
+        {
+          "file_path": "examples/quickstart.py",
+          "line": 38,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.gemm.basic_tiled",
+      "target": "tilelang.language.kernel.Kernel",
+      "edge_type": "requires",
+      "confidence": 0.96,
+      "evidence": [
+        {
+          "file_path": "examples/quickstart.py",
+          "line": 38,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.gemm.basic_tiled",
+      "target": "tilelang.language.allocate.alloc_shared",
+      "edge_type": "requires",
+      "confidence": 0.96,
+      "evidence": [
+        {
+          "file_path": "examples/quickstart.py",
+          "line": 38,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.gemm.split_k_atomic",
+      "target": "examples.gemm_splitk",
+      "edge_type": "evidenced_by",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "examples/gemm_splitk/example_tilelang_gemm_splitk.py",
+          "line": 6,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.gemm.split_k_atomic",
+      "target": "examples.gemm_splitk",
+      "edge_type": "evidenced_by",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "examples/gemm_splitk/example_tilelang_gemm_splitk.py",
+          "line": 6,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.gemm.split_k_atomic",
+      "target": "tilelang.language.kernel.Kernel",
+      "edge_type": "requires",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "examples/gemm_splitk/example_tilelang_gemm_splitk.py",
+          "line": 6,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.gemm.split_k_atomic",
+      "target": "tilelang.language.loop.Pipelined",
+      "edge_type": "requires",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "examples/gemm_splitk/example_tilelang_gemm_splitk.py",
+          "line": 6,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.gemm.split_k_atomic",
+      "target": "tilelang.language.copy_op.copy",
+      "edge_type": "requires",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "examples/gemm_splitk/example_tilelang_gemm_splitk.py",
+          "line": 6,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.gemm.split_k_atomic",
+      "target": "tilelang.language.gemm_op.gemm",
+      "edge_type": "requires",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "examples/gemm_splitk/example_tilelang_gemm_splitk.py",
+          "line": 6,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.gemm.split_k_atomic",
+      "target": "tilelang.language.allocate.alloc_shared",
+      "edge_type": "requires",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "examples/gemm_splitk/example_tilelang_gemm_splitk.py",
+          "line": 6,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.gemm.sparse_2_4",
+      "target": "examples.sparse_tensorcore",
+      "edge_type": "evidenced_by",
+      "confidence": 0.88,
+      "evidence": [
+        {
+          "file_path": "docs/deeplearning_operators/matmul_sparse.md",
+          "line": 58,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.gemm.sparse_2_4",
+      "target": "docs.deeplearning_operators",
+      "edge_type": "evidenced_by",
+      "confidence": 0.88,
+      "evidence": [
+        {
+          "file_path": "docs/deeplearning_operators/matmul_sparse.md",
+          "line": 58,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.gemm.sparse_2_4",
+      "target": "benchmark.matmul",
+      "edge_type": "evidenced_by",
+      "confidence": 0.88,
+      "evidence": [
+        {
+          "file_path": "docs/deeplearning_operators/matmul_sparse.md",
+          "line": 58,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.gemm.sparse_2_4",
+      "target": "tilelang.language.copy_op.copy",
+      "edge_type": "requires",
+      "confidence": 0.88,
+      "evidence": [
+        {
+          "file_path": "docs/deeplearning_operators/matmul_sparse.md",
+          "line": 58,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.gemm.sparse_2_4",
+      "target": "tilelang.language.allocate.alloc_shared",
+      "edge_type": "requires",
+      "confidence": 0.88,
+      "evidence": [
+        {
+          "file_path": "docs/deeplearning_operators/matmul_sparse.md",
+          "line": 58,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.gemm.sparse_2_4",
+      "target": "tilelang.language.allocate.alloc_fragment",
+      "edge_type": "requires",
+      "confidence": 0.88,
+      "evidence": [
+        {
+          "file_path": "docs/deeplearning_operators/matmul_sparse.md",
+          "line": 58,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.attention.flash_mha_forward",
+      "target": "examples.flash_attention",
+      "edge_type": "evidenced_by",
+      "confidence": 0.84,
+      "evidence": [
+        {
+          "file_path": "examples/flash_attention/example_mha_fwd_bshd.py",
+          "line": 67,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.attention.flash_mha_forward",
+      "target": "examples.flash_attention",
+      "edge_type": "evidenced_by",
+      "confidence": 0.84,
+      "evidence": [
+        {
+          "file_path": "examples/flash_attention/example_mha_fwd_bshd.py",
+          "line": 67,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.attention.flash_mha_forward",
+      "target": "examples.online_softmax",
+      "edge_type": "evidenced_by",
+      "confidence": 0.84,
+      "evidence": [
+        {
+          "file_path": "examples/flash_attention/example_mha_fwd_bshd.py",
+          "line": 67,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.attention.flash_mha_forward",
+      "target": "tilelang.language.kernel.Kernel",
+      "edge_type": "requires",
+      "confidence": 0.84,
+      "evidence": [
+        {
+          "file_path": "examples/flash_attention/example_mha_fwd_bshd.py",
+          "line": 67,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.attention.flash_mha_forward",
+      "target": "tilelang.language.allocate.alloc_shared",
+      "edge_type": "requires",
+      "confidence": 0.84,
+      "evidence": [
+        {
+          "file_path": "examples/flash_attention/example_mha_fwd_bshd.py",
+          "line": 67,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.attention.flash_mha_forward",
+      "target": "tilelang.language.allocate.alloc_fragment",
+      "edge_type": "requires",
+      "confidence": 0.84,
+      "evidence": [
+        {
+          "file_path": "examples/flash_attention/example_mha_fwd_bshd.py",
+          "line": 67,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.attention.flash_mha_forward",
+      "target": "tilelang.language.copy_op.copy",
+      "edge_type": "requires",
+      "confidence": 0.84,
+      "evidence": [
+        {
+          "file_path": "examples/flash_attention/example_mha_fwd_bshd.py",
+          "line": 67,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.attention.flash_mha_forward",
+      "target": "tilelang.language.gemm_op.gemm",
+      "edge_type": "requires",
+      "confidence": 0.84,
+      "evidence": [
+        {
+          "file_path": "examples/flash_attention/example_mha_fwd_bshd.py",
+          "line": 67,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.attention.decode_paged",
+      "target": "examples.flash_decoding",
+      "edge_type": "evidenced_by",
+      "confidence": 0.78,
+      "evidence": [
+        {
+          "file_path": "examples/flash_decoding/example_gqa_decode.py",
+          "line": 15,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.attention.decode_paged",
+      "target": "examples.deepseek_mla",
+      "edge_type": "evidenced_by",
+      "confidence": 0.78,
+      "evidence": [
+        {
+          "file_path": "examples/flash_decoding/example_gqa_decode.py",
+          "line": 15,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.attention.decode_paged",
+      "target": "examples.deepseek_mla",
+      "edge_type": "evidenced_by",
+      "confidence": 0.78,
+      "evidence": [
+        {
+          "file_path": "examples/flash_decoding/example_gqa_decode.py",
+          "line": 15,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.attention.decode_paged",
+      "target": "tilelang.language.kernel.Kernel",
+      "edge_type": "requires",
+      "confidence": 0.78,
+      "evidence": [
+        {
+          "file_path": "examples/flash_decoding/example_gqa_decode.py",
+          "line": 15,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.attention.decode_paged",
+      "target": "tilelang.language.copy_op.copy",
+      "edge_type": "requires",
+      "confidence": 0.78,
+      "evidence": [
+        {
+          "file_path": "examples/flash_decoding/example_gqa_decode.py",
+          "line": 15,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.attention.decode_paged",
+      "target": "tilelang.language.gemm_op.gemm",
+      "edge_type": "requires",
+      "confidence": 0.78,
+      "evidence": [
+        {
+          "file_path": "examples/flash_decoding/example_gqa_decode.py",
+          "line": 15,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.attention.decode_paged",
+      "target": "tilelang.language.reduce_op.reduce_sum",
+      "edge_type": "requires",
+      "confidence": 0.78,
+      "evidence": [
+        {
+          "file_path": "examples/flash_decoding/example_gqa_decode.py",
+          "line": 15,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.reduction.online_softmax",
+      "target": "examples.online_softmax",
+      "edge_type": "evidenced_by",
+      "confidence": 0.88,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/reduce_op.py",
+          "line": 44,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.reduction.online_softmax",
+      "target": "testing.python",
+      "edge_type": "evidenced_by",
+      "confidence": 0.88,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/reduce_op.py",
+          "line": 44,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.reduction.online_softmax",
+      "target": "testing.python",
+      "edge_type": "evidenced_by",
+      "confidence": 0.88,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/reduce_op.py",
+          "line": 44,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.reduction.online_softmax",
+      "target": "tilelang.language.reduce_op.reduce_sum",
+      "edge_type": "requires",
+      "confidence": 0.88,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/reduce_op.py",
+          "line": 44,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.reduction.online_softmax",
+      "target": "tilelang.language.allocate.alloc_fragment",
+      "edge_type": "requires",
+      "confidence": 0.88,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/reduce_op.py",
+          "line": 44,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.reduction.online_softmax",
+      "target": "tilelang.language.allocate.alloc_shared",
+      "edge_type": "requires",
+      "confidence": 0.88,
+      "evidence": [
+        {
+          "file_path": "tilelang/language/reduce_op.py",
+          "line": 44,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.conv.im2col_gemm",
+      "target": "examples.convolution",
+      "edge_type": "evidenced_by",
+      "confidence": 0.76,
+      "evidence": [
+        {
+          "file_path": "examples/convolution/example_convolution.py",
+          "line": 64,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.conv.im2col_gemm",
+      "target": "examples.convolution",
+      "edge_type": "evidenced_by",
+      "confidence": 0.76,
+      "evidence": [
+        {
+          "file_path": "examples/convolution/example_convolution.py",
+          "line": 64,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.conv.im2col_gemm",
+      "target": "examples.convolution",
+      "edge_type": "evidenced_by",
+      "confidence": 0.76,
+      "evidence": [
+        {
+          "file_path": "examples/convolution/example_convolution.py",
+          "line": 64,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.conv.im2col_gemm",
+      "target": "tilelang.language.kernel.Kernel",
+      "edge_type": "requires",
+      "confidence": 0.76,
+      "evidence": [
+        {
+          "file_path": "examples/convolution/example_convolution.py",
+          "line": 64,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.conv.im2col_gemm",
+      "target": "tilelang.language.copy_op.copy",
+      "edge_type": "requires",
+      "confidence": 0.76,
+      "evidence": [
+        {
+          "file_path": "examples/convolution/example_convolution.py",
+          "line": 64,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.conv.im2col_gemm",
+      "target": "tilelang.language.allocate.alloc_shared",
+      "edge_type": "requires",
+      "confidence": 0.76,
+      "evidence": [
+        {
+          "file_path": "examples/convolution/example_convolution.py",
+          "line": 64,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.conv.im2col_gemm",
+      "target": "tilelang.language.allocate.alloc_fragment",
+      "edge_type": "requires",
+      "confidence": 0.76,
+      "evidence": [
+        {
+          "file_path": "examples/convolution/example_convolution.py",
+          "line": 64,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.conv.im2col_gemm",
+      "target": "tilelang.language.gemm_op.gemm",
+      "edge_type": "requires",
+      "confidence": 0.76,
+      "evidence": [
+        {
+          "file_path": "examples/convolution/example_convolution.py",
+          "line": 64,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.elementwise.parallel_tile",
+      "target": "examples.elementwise",
+      "edge_type": "evidenced_by",
+      "confidence": 0.92,
+      "evidence": [
+        {
+          "file_path": "examples/elementwise/example_elementwise_add.py",
+          "line": 23,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.elementwise.parallel_tile",
+      "target": "docs.deeplearning_operators",
+      "edge_type": "evidenced_by",
+      "confidence": 0.92,
+      "evidence": [
+        {
+          "file_path": "examples/elementwise/example_elementwise_add.py",
+          "line": 23,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.elementwise.parallel_tile",
+      "target": "testing.python",
+      "edge_type": "evidenced_by",
+      "confidence": 0.92,
+      "evidence": [
+        {
+          "file_path": "examples/elementwise/example_elementwise_add.py",
+          "line": 23,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.elementwise.parallel_tile",
+      "target": "tilelang.language.kernel.Kernel",
+      "edge_type": "requires",
+      "confidence": 0.92,
+      "evidence": [
+        {
+          "file_path": "examples/elementwise/example_elementwise_add.py",
+          "line": 23,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.elementwise.parallel_tile",
+      "target": "tilelang.language.loop.Parallel",
+      "edge_type": "requires",
+      "confidence": 0.92,
+      "evidence": [
+        {
+          "file_path": "examples/elementwise/example_elementwise_add.py",
+          "line": 23,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.topk.selection",
+      "target": "examples.topk",
+      "edge_type": "evidenced_by",
+      "confidence": 0.72,
+      "evidence": [
+        {
+          "file_path": "examples/topk/example_topk.py",
+          "line": 18,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.topk.selection",
+      "target": "examples.topk",
+      "edge_type": "evidenced_by",
+      "confidence": 0.72,
+      "evidence": [
+        {
+          "file_path": "examples/topk/example_topk.py",
+          "line": 18,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.topk.selection",
+      "target": "tilelang.language.kernel.Kernel",
+      "edge_type": "requires",
+      "confidence": 0.72,
+      "evidence": [
+        {
+          "file_path": "examples/topk/example_topk.py",
+          "line": 18,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.topk.selection",
+      "target": "tilelang.language.allocate.alloc_fragment",
+      "edge_type": "requires",
+      "confidence": 0.72,
+      "evidence": [
+        {
+          "file_path": "examples/topk/example_topk.py",
+          "line": 18,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.topk.selection",
+      "target": "tilelang.language.allocate.alloc_shared",
+      "edge_type": "requires",
+      "confidence": 0.72,
+      "evidence": [
+        {
+          "file_path": "examples/topk/example_topk.py",
+          "line": 18,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.topk.selection",
+      "target": "tilelang.language.loop.Parallel",
+      "edge_type": "requires",
+      "confidence": 0.72,
+      "evidence": [
+        {
+          "file_path": "examples/topk/example_topk.py",
+          "line": 18,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.topk.selection",
+      "target": "tilelang.language.copy_op.copy",
+      "edge_type": "requires",
+      "confidence": 0.72,
+      "evidence": [
+        {
+          "file_path": "examples/topk/example_topk.py",
+          "line": 18,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.autotune.kernel_config_search",
+      "target": "docs.programming_guides",
+      "edge_type": "evidenced_by",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "docs/programming_guides/autotuning.md",
+          "line": 8,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.autotune.kernel_config_search",
+      "target": "examples.gemm",
+      "edge_type": "evidenced_by",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "docs/programming_guides/autotuning.md",
+          "line": 8,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.autotune.kernel_config_search",
+      "target": "testing.python",
+      "edge_type": "evidenced_by",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "docs/programming_guides/autotuning.md",
+          "line": 8,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "pattern.autotune.kernel_config_search",
+      "target": "tilelang.jit.jit",
+      "edge_type": "requires",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "file_path": "docs/programming_guides/autotuning.md",
+          "line": 8,
+          "kind": "source"
+        }
+      ]
+    },
+    {
+      "source": "tilelang.language",
+      "target": "tilelang.language.kernel.Kernel",
+      "edge_type": "exposes",
+      "confidence": 0.9
+    },
+    {
+      "source": "tilelang.language",
+      "target": "tilelang.language.copy_op.copy",
+      "edge_type": "exposes",
+      "confidence": 0.9
+    },
+    {
+      "source": "tilelang.language",
+      "target": "tilelang.language.gemm_op.gemm",
+      "edge_type": "exposes",
+      "confidence": 0.9
+    },
+    {
+      "source": "tilelang.language",
+      "target": "tilelang.language.reduce_op.reduce_sum",
+      "edge_type": "exposes",
+      "confidence": 0.9
+    },
+    {
+      "source": "tilelang.language",
+      "target": "tilelang.language.loop.Pipelined",
+      "edge_type": "exposes",
+      "confidence": 0.9
+    },
+    {
+      "source": "tilelang.language",
+      "target": "tilelang.language.loop.Parallel",
+      "edge_type": "exposes",
+      "confidence": 0.9
+    },
+    {
+      "source": "tilelang.jit",
+      "target": "tilelang.jit.jit",
+      "edge_type": "exposes",
+      "confidence": 0.9
+    },
+    {
+      "source": "tilelang.engine",
+      "target": "tilelang.engine.lower.lower",
+      "edge_type": "exposes",
+      "confidence": 0.9
+    },
+    {
+      "source": "tilelang.jit.jit",
+      "target": "tilelang.engine.lower.lower",
+      "edge_type": "lowers_through",
+      "confidence": 0.65
+    },
+    {
+      "source": "tilelang.language.gemm_op.gemm",
+      "target": "tilelang.transform",
+      "edge_type": "lowers_through",
+      "confidence": 0.65
+    },
+    {
+      "source": "tilelang.language.copy_op.copy",
+      "target": "tilelang.transform",
+      "edge_type": "lowers_through",
+      "confidence": 0.65
+    },
+    {
+      "source": "tilelang.language.loop.Pipelined",
+      "target": "tilelang.transform",
+      "edge_type": "lowers_through",
+      "confidence": 0.65
+    },
+    {
+      "source": "tilelang.language.reduce_op.reduce_sum",
+      "target": "tilelang.transform",
+      "edge_type": "lowers_through",
+      "confidence": 0.65
+    },
+    {
+      "source": "gemm_like_patterns",
+      "target": "pattern.gemm.dequantized_low_bit",
+      "edge_type": "enables",
+      "confidence": 0.82
+    },
+    {
+      "source": "gemm_like_patterns",
+      "target": "pattern.gemm.grouped_moe",
+      "edge_type": "enables",
+      "confidence": 0.82
+    },
+    {
+      "source": "gemm_like_patterns",
+      "target": "pattern.dynamic_shape.symbolic_gemm",
+      "edge_type": "enables",
+      "confidence": 0.82
+    },
+    {
+      "source": "gemm_like_patterns",
+      "target": "pattern.gemm.explicit_async_tensorcore",
+      "edge_type": "enables",
+      "confidence": 0.82
+    },
+    {
+      "source": "tensor_intrinsics",
+      "target": "pattern.gemm.explicit_async_tensorcore",
+      "edge_type": "enables",
+      "confidence": 0.82
+    },
+    {
+      "source": "tensor_intrinsics",
+      "target": "pattern.gemm.dequantized_low_bit",
+      "edge_type": "enables",
+      "confidence": 0.82
+    },
+    {
+      "source": "reductions",
+      "target": "pattern.norm.rms_norm",
+      "edge_type": "enables",
+      "confidence": 0.82
+    },
+    {
+      "source": "elementwise_and_fusion_patterns",
+      "target": "pattern.norm.rms_norm",
+      "edge_type": "enables",
+      "confidence": 0.82
+    },
+    {
+      "source": "kernel_construction",
+      "target": "pattern.dynamic_shape.symbolic_gemm",
+      "edge_type": "enables",
+      "confidence": 0.82
+    },
+    {
+      "source": "lowering_or_codegen_related_components",
+      "target": "pattern.gemm.explicit_async_tensorcore",
+      "edge_type": "enables",
+      "confidence": 0.82
+    },
+    {
+      "source": "pattern.gemm.dequantized_low_bit",
+      "target": "tilelang.language.gemm_op.gemm",
+      "edge_type": "requires",
+      "confidence": 0.82
+    },
+    {
+      "source": "pattern.gemm.grouped_moe",
+      "target": "tilelang.language.gemm_op.gemm",
+      "edge_type": "requires",
+      "confidence": 0.82
+    },
+    {
+      "source": "pattern.norm.rms_norm",
+      "target": "tilelang.language.reduce_op.reduce_sum",
+      "edge_type": "requires",
+      "confidence": 0.82
+    },
+    {
+      "source": "pattern.dynamic_shape.symbolic_gemm",
+      "target": "tilelang.language.gemm_op.gemm",
+      "edge_type": "requires",
+      "confidence": 0.82
+    },
+    {
+      "source": "pattern.gemm.explicit_async_tensorcore",
+      "target": "tilelang.language.gemm_op.wgmma_gemm",
+      "edge_type": "requires",
+      "confidence": 0.82
+    },
+    {
+      "source": "kernel_construction",
+      "target": "device.nvidia_cuda",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.86
+    },
+    {
+      "source": "kernel_construction",
+      "target": "device.amd_hip",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.76
+    },
+    {
+      "source": "kernel_construction",
+      "target": "device.cpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.72
+    },
+    {
+      "source": "kernel_construction",
+      "target": "device.metal_webgpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.55
+    },
+    {
+      "source": "memory_movement",
+      "target": "device.nvidia_cuda",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.86
+    },
+    {
+      "source": "memory_movement",
+      "target": "device.amd_hip",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.76
+    },
+    {
+      "source": "memory_movement",
+      "target": "device.cpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.72
+    },
+    {
+      "source": "memory_movement",
+      "target": "device.metal_webgpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.55
+    },
+    {
+      "source": "tiling_and_schedule",
+      "target": "device.nvidia_cuda",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.86
+    },
+    {
+      "source": "tiling_and_schedule",
+      "target": "device.amd_hip",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.76
+    },
+    {
+      "source": "tiling_and_schedule",
+      "target": "device.cpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.72
+    },
+    {
+      "source": "tiling_and_schedule",
+      "target": "device.metal_webgpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.55
+    },
+    {
+      "source": "pipelining",
+      "target": "device.nvidia_cuda",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.86
+    },
+    {
+      "source": "pipelining",
+      "target": "device.amd_hip",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.76
+    },
+    {
+      "source": "pipelining",
+      "target": "device.cpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.72
+    },
+    {
+      "source": "pipelining",
+      "target": "device.metal_webgpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.55
+    },
+    {
+      "source": "tensor_intrinsics",
+      "target": "device.nvidia_cuda",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.86
+    },
+    {
+      "source": "tensor_intrinsics",
+      "target": "device.amd_hip",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.76
+    },
+    {
+      "source": "tensor_intrinsics",
+      "target": "device.cpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.72
+    },
+    {
+      "source": "tensor_intrinsics",
+      "target": "device.metal_webgpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.55
+    },
+    {
+      "source": "reductions",
+      "target": "device.nvidia_cuda",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.86
+    },
+    {
+      "source": "reductions",
+      "target": "device.amd_hip",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.76
+    },
+    {
+      "source": "reductions",
+      "target": "device.cpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.72
+    },
+    {
+      "source": "reductions",
+      "target": "device.metal_webgpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.55
+    },
+    {
+      "source": "gemm_like_patterns",
+      "target": "device.nvidia_cuda",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.86
+    },
+    {
+      "source": "gemm_like_patterns",
+      "target": "device.amd_hip",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.76
+    },
+    {
+      "source": "gemm_like_patterns",
+      "target": "device.cpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.72
+    },
+    {
+      "source": "gemm_like_patterns",
+      "target": "device.metal_webgpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.55
+    },
+    {
+      "source": "attention_like_patterns",
+      "target": "device.nvidia_cuda",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.86
+    },
+    {
+      "source": "attention_like_patterns",
+      "target": "device.amd_hip",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.76
+    },
+    {
+      "source": "attention_like_patterns",
+      "target": "device.cpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.72
+    },
+    {
+      "source": "attention_like_patterns",
+      "target": "device.metal_webgpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.55
+    },
+    {
+      "source": "convolution_like_patterns",
+      "target": "device.nvidia_cuda",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.86
+    },
+    {
+      "source": "convolution_like_patterns",
+      "target": "device.amd_hip",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.76
+    },
+    {
+      "source": "convolution_like_patterns",
+      "target": "device.cpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.72
+    },
+    {
+      "source": "convolution_like_patterns",
+      "target": "device.metal_webgpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.55
+    },
+    {
+      "source": "elementwise_and_fusion_patterns",
+      "target": "device.nvidia_cuda",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.86
+    },
+    {
+      "source": "elementwise_and_fusion_patterns",
+      "target": "device.amd_hip",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.76
+    },
+    {
+      "source": "elementwise_and_fusion_patterns",
+      "target": "device.cpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.72
+    },
+    {
+      "source": "elementwise_and_fusion_patterns",
+      "target": "device.metal_webgpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.55
+    },
+    {
+      "source": "lowering_or_codegen_related_components",
+      "target": "device.nvidia_cuda",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.86
+    },
+    {
+      "source": "lowering_or_codegen_related_components",
+      "target": "device.amd_hip",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.76
+    },
+    {
+      "source": "lowering_or_codegen_related_components",
+      "target": "device.cpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.72
+    },
+    {
+      "source": "lowering_or_codegen_related_components",
+      "target": "device.metal_webgpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.55
+    },
+    {
+      "source": "testing_and_validation_support",
+      "target": "device.nvidia_cuda",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.86
+    },
+    {
+      "source": "testing_and_validation_support",
+      "target": "device.amd_hip",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.76
+    },
+    {
+      "source": "testing_and_validation_support",
+      "target": "device.cpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.72
+    },
+    {
+      "source": "testing_and_validation_support",
+      "target": "device.metal_webgpu",
+      "edge_type": "has_device_adaptation",
+      "confidence": 0.55
+    }
+  ],
+  "notes": "Graph focuses on operator-development concepts. Some lowering edges are inferred from transform names, docs, and tests rather than direct static call edges. Device family nodes were added for target-aware operator retrieval."
+}

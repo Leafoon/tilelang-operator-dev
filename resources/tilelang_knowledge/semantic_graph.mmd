@@ -1,0 +1,33 @@
+flowchart TD
+  nvidia["NVIDIA CUDA targets"] --> kernel
+  amd["AMD HIP/CDNA targets"] --> kernel
+  cpu["CPU LLVM/C targets"] --> kernel
+  portable["Metal/WebGPU generic targets"] --> elem
+  kernel["kernel_construction"] --> gemmPat["Basic tiled GEMM pattern"]
+  kernel --> elemPat["Elementwise/fusion pattern"]
+  mem["memory_movement"] --> copy["T.copy / T.async_copy / T.tma_copy"]
+  schedule["tiling_and_schedule"] --> loops["T.Parallel / T.Pipelined"]
+  pipeline["pipelining"] --> loops
+  intrin["tensor_intrinsics"] --> gemm["T.gemm / WGMMA / TCGEN05"]
+  reduce["reductions"] --> redops["T.reduce_* / warp_reduce_*"]
+  gemmCap["gemm_like_patterns"] --> gemmPat
+  gemmCap --> splitK["Split-K / sparse GEMM patterns"]
+  gemmCap --> lowbit["Dequantized / low-bit GEMM"]
+  gemmCap --> grouped["Grouped GEMM / MoE"]
+  gemmCap --> dyn["Dynamic-shape GEMM"]
+  intrin --> explicit["Explicit WGMMA / TCGEN waits"]
+  attention["attention_like_patterns"] --> flash["Flash attention / decode patterns"]
+  flash --> gemm
+  flash --> redops
+  reduce --> norm["RMSNorm / row normalization"]
+  conv["convolution_like_patterns"] --> gemmPat
+  elem["elementwise_and_fusion_patterns"] --> elemPat
+  lower["lowering_or_codegen_related_components"] --> transforms["LowerTileOp / LayoutInference / InjectSoftwarePipeline"]
+  tests["testing_and_validation_support"] --> profiler["Profiler / get_kernel_source / do_bench"]
+  gemmPat --> copy
+  gemmPat --> loops
+  gemmPat --> gemm
+  elemPat --> loops
+  copy --> transforms
+  gemm --> transforms
+  loops --> transforms

@@ -1,0 +1,39 @@
+{
+  "name": "tilelang-operator-dev",
+  "version": "0.3.0",
+  "description": "MCP-backed TileLang operator development skill with workspace validation and device-aware planning",
+  "author": {
+    "name": "TileLang Community",
+    "email": "tilelang@example.com",
+    "url": "https://github.com/tile-ai/tilelang"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/your-username/tilelang-operator-dev",
+  "repository": "https://github.com/your-username/tilelang-operator-dev",
+  "keywords": [
+    "tilelang",
+    "gpu-kernels",
+    "operator-development",
+    "mcp",
+    "hardware-aware",
+    "gemm",
+    "attention"
+  ],
+  "category": "Developer Tools",
+  "requirements": {
+    "python": ">=3.8",
+    "mcp_compatible_tools": [
+      "Claude Code",
+      "OpenAI Codex",
+      "Cursor",
+      "OpenCode"
+    ]
+  },
+  "mcp_server": {
+    "name": "tilelang-operator-knowledge",
+    "entry_point": "scripts/tilelang_operator_mcp.py",
+    "protocol": "2025-03-26"
+  },
+  "skill_file": "SKILL.md",
+  "knowledge_base": "resources/tilelang_knowledge"
+}
