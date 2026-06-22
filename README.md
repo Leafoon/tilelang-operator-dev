@@ -2,36 +2,76 @@
 
 MCP-backed TileLang operator development skill with workspace validation and device-aware planning.
 
+## Prerequisites
+
+This skill requires a **TileLang workspace** — the AI agent validates the workspace before generating any code. You need one of:
+
+**Option A: Clone the official TileLang repo** (recommended for learning/contributing)
+
+```bash
+git clone https://github.com/tile-ai/tilelang.git
+cd tilelang
+```
+
+**Option B: Your own project with TileLang** (for building custom operators)
+
+```bash
+pip install tilelang
+mkdir my-project && cd my-project
+# Your project must have tilelang/__init__.py accessible (usually via pip install)
+# and at least src/transform or src/op, plus examples/ or testing/ or docs/
+```
+
+Without a valid TileLang workspace, the skill will stop and refuse to generate code.
+
 ## Installation
 
-### Universal (Any MCP-compatible tool)
+### Quick Start (Claude Code)
 
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/your-username/tilelang-operator-dev.git
-   ```
+```bash
+# 1. Clone the skill
+git clone https://github.com/Leafoon/tilelang-operator-dev.git
 
-2. Copy skill files to your AI tool's skill directory:
-   ```bash
-   # For Claude Code
-   cp -r tilelang-operator-dev ~/.claude/skills/
+# 2. Clone TileLang (the workspace the skill validates against)
+git clone https://github.com/tile-ai/tilelang.git
 
-   # For other tools, copy SKILL.md to appropriate location
-   ```
+# 3. Put the skill into TileLang's .claude/skills/
+cp -r tilelang-operator-dev/.claude/skills/run-tilelang-mcp tilelang/.claude/skills/
 
-3. Copy MCP config and knowledge base to your TileLang workspace:
-   ```bash
-   cp tilelang-operator-dev/resources/.mcp.json your-workspace/
-   cp -r tilelang-operator-dev/resources/tilelang_knowledge your-workspace/
-   ```
+# 4. Copy MCP config into the TileLang workspace
+cp tilelang-operator-dev/resources/.mcp.json tilelang/
 
-4. Update the path in `.mcp.json` to point to the actual location of `scripts/tilelang_operator_mcp.py`.
+# 5. Edit tilelang/.mcp.json — set the script path to the actual location
 
-### Tool-Specific Notes
+# 6. Open tilelang/ in Claude Code and ask: "write a GEMM kernel for H100"
+```
+
+### Global Install (use from any directory)
+
+Copy the skill to your global Claude Code skills directory:
+
+```bash
+git clone https://github.com/Leafoon/tilelang-operator-dev.git
+cp -r tilelang-operator-dev/.claude/skills/run-tilelang-mcp ~/.claude/skills/
+```
+
+Copy MCP config to your TileLang workspace:
+
+```bash
+cp tilelang-operator-dev/resources/.mcp.json your-workspace/
+```
+
+Update the path in `.mcp.json` to point to the actual location of `scripts/tilelang_operator_mcp.py`.
+
+> **Note:** the knowledge base is built into the MCP server — no need to copy `tilelang_knowledge/` separately. The server automatically uses `resources/tilelang_knowledge/` from the skill package as a fallback.
+
+### Other MCP-compatible Tools
+
+Copy `SKILL.md` to the appropriate skill location and configure MCP using `resources/.mcp.json`:
 
 | Tool | Skill Location | MCP Config |
 |------|----------------|------------|
-| Claude Code | `~/.claude/skills/tilelang-operator-dev/` | `.mcp.json` in project root |
+| Claude Code | `.claude/skills/` or `~/.claude/skills/` | `.mcp.json` in project root |
 | OpenAI Codex | `.codex-plugin/` | `.mcp.json` in project root |
 | Cursor | `.cursorrules` or project root | `.mcp.json` in project root |
 | OpenCode | Project config | `.mcp.json` in project root |
@@ -46,6 +86,12 @@ tilelang-operator-dev/
 ├── CHANGELOG.md                     # Version history
 ├── LICENSE                          # Apache-2.0
 ├── .gitignore
+│
+├── .claude/                         # Claude Code integration
+│   └── skills/
+│       └── run-tilelang-mcp/        # MCP server driver skill
+│           ├── SKILL.md             # Agent-facing instructions
+│           └── driver.py            # Smoke test / tool caller
 │
 ├── scripts/                         # Executable scripts
 │   └── tilelang_operator_mcp.py     # MCP server
@@ -82,6 +128,8 @@ tilelang-operator-dev/
 |------|---------|--------------|
 | `SKILL.md` | AI agent instructions (when/how to use tools) | AI agent (Claude, GPT, etc.) |
 | `metadata.json` | Skill metadata (version, author, etc.) | AI tools, package managers |
+| `.claude/skills/run-tilelang-mcp/SKILL.md` | MCP driver skill instructions | Claude Code (auto-loaded) |
+| `.claude/skills/run-tilelang-mcp/driver.py` | MCP server smoke test and tool caller | Developers, CI/CD |
 | `scripts/tilelang_operator_mcp.py` | MCP server implementation | AI tool runtime |
 | `resources/.mcp.json` | MCP server connection config | AI tools (Claude Code, Codex, etc.) |
 | `resources/tilelang_knowledge/` | Pre-generated knowledge base | MCP server |
@@ -142,7 +190,27 @@ Conservative with WGMMA, TCGEN05, TMA, `cp.async`, MFMA, LDS, TMEM, `cluster_dim
 python3 scripts/tilelang_operator_mcp.py --check
 ```
 
-### Testing
+> **Windows users:** use `python` instead of `python3` — the `python3` alias is the Windows Store stub and will not work.
+
+### Smoke Test (all 10 tools)
+
+```bash
+python3 .claude/skills/run-tilelang-mcp/driver.py --smoke
+```
+
+### List Available Tools
+
+```bash
+python3 .claude/skills/run-tilelang-mcp/driver.py --list
+```
+
+### Call a Single Tool
+
+```bash
+python3 .claude/skills/run-tilelang-mcp/driver.py --call normalize_device_profile --args '{"vendor":"nvidia","model":"H100","target":"cuda"}'
+```
+
+### Raw JSON-RPC Test
 
 ```bash
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | python3 scripts/tilelang_operator_mcp.py

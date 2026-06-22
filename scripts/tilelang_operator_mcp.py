@@ -3,11 +3,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import traceback
 from pathlib import Path
 from typing import Any
+
+# Force UTF-8 on Windows where stdout defaults to GBK/CP936
+if sys.platform == "win32":
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
 
 
 SUPPORTED_PROTOCOL = "2025-03-26"
@@ -65,8 +72,24 @@ def workspace_root(value: str | None) -> Path:
     return Path(value or ".").expanduser().resolve()
 
 
+# Built-in knowledge base bundled with the skill package
+SKILL_ROOT = Path(__file__).resolve().parent.parent
+BUILTIN_KNOWLEDGE = SKILL_ROOT / "resources" / "tilelang_knowledge"
+
+
 def knowledge_dir(root: Path) -> Path:
-    return root / "tilelang_knowledge"
+    """Resolve tilelang_knowledge directory.
+
+    Priority:
+    1. Workspace-local tilelang_knowledge/ (user copied or generated)
+    2. Skill-bundled resources/tilelang_knowledge/ (built-in fallback)
+    """
+    local = root / "tilelang_knowledge"
+    if local.is_dir():
+        return local
+    if BUILTIN_KNOWLEDGE.is_dir():
+        return BUILTIN_KNOWLEDGE
+    return local  # return the expected path for error messages
 
 
 def file_exists(root: Path, rel: str) -> bool:
@@ -83,7 +106,9 @@ def inspect_workspace(args: dict[str, Any]) -> dict[str, Any]:
     if not has_corpus:
         missing_repo.append("one of: " + ", ".join(REPO_CORPUS_DIRS))
 
+    local_kdir = root / "tilelang_knowledge"
     kdir = knowledge_dir(root)
+    using_builtin = kdir == BUILTIN_KNOWLEDGE and not local_kdir.is_dir()
     missing_knowledge = []
     if not kdir.is_dir():
         missing_knowledge.append("tilelang_knowledge/")
@@ -96,6 +121,7 @@ def inspect_workspace(args: dict[str, Any]) -> dict[str, Any]:
         "workspace_path": str(root),
         "repo_root": str(root) if not missing_repo else None,
         "knowledge_path": str(kdir) if kdir.is_dir() else None,
+        "knowledge_source": "builtin" if using_builtin else "workspace",
         "is_tilelang_repo": not missing_repo,
         "has_knowledge_base": kdir.is_dir() and not missing_knowledge,
         "missing_repo_indicators": missing_repo,
@@ -132,7 +158,9 @@ def parse_jsonl(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
 
 def validate_knowledge(args: dict[str, Any]) -> dict[str, Any]:
     root = workspace_root(args.get("workspace_path"))
+    local_kdir = root / "tilelang_knowledge"
     kdir = knowledge_dir(root)
+    using_builtin = kdir == BUILTIN_KNOWLEDGE and not local_kdir.is_dir()
     missing = [p for p in KNOWLEDGE_REQUIRED if not (kdir / p).is_file()]
     parse_errors: dict[str, Any] = {}
     counts: dict[str, int] = {}
@@ -170,6 +198,7 @@ def validate_knowledge(args: dict[str, Any]) -> dict[str, Any]:
         "status": status,
         "workspace_path": str(root),
         "knowledge_path": str(kdir) if kdir.is_dir() else None,
+        "knowledge_source": "builtin" if using_builtin else "workspace",
         "missing_files": [f"tilelang_knowledge/{p}" for p in missing],
         "parse_errors": parse_errors,
         "counts": counts,
