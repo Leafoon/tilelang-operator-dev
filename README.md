@@ -1,5 +1,7 @@
 # TileLang Operator Dev
 
+**English** | [中文](README_CN.md)
+
 MCP-backed TileLang operator development skill with workspace validation and device-aware planning.
 
 ## Prerequisites
@@ -63,6 +65,11 @@ cp tilelang-operator-dev/resources/.mcp.json your-workspace/
 
 Update the path in `.mcp.json` to point to the actual location of `scripts/tilelang_operator_mcp.py`.
 
+> **Windows users:** use `.mcp.windows.json` instead — it uses `python` instead of `python3`:
+> ```bash
+> cp tilelang-operator-dev/resources/.mcp.windows.json your-workspace/.mcp.json
+> ```
+
 > **Note:** the knowledge base is built into the MCP server — no need to copy `tilelang_knowledge/` separately. The server automatically uses `resources/tilelang_knowledge/` from the skill package as a fallback.
 
 ### Other MCP-compatible Tools
@@ -82,7 +89,8 @@ Copy `SKILL.md` to the appropriate skill location and configure MCP using `resou
 tilelang-operator-dev/
 ├── SKILL.md                         # Core skill instructions
 ├── metadata.json                    # Skill metadata
-├── README.md                        # This file
+├── README.md                        # English
+├── README_CN.md                     # Chinese
 ├── CHANGELOG.md                     # Version history
 ├── LICENSE                          # Apache-2.0
 ├── .gitignore
@@ -97,7 +105,8 @@ tilelang-operator-dev/
 │   └── tilelang_operator_mcp.py     # MCP server
 │
 ├── resources/                       # Resource files
-│   ├── .mcp.json                    # MCP configuration
+│   ├── .mcp.json                    # MCP configuration (Linux/Mac)
+│   ├── .mcp.windows.json            # MCP configuration (Windows)
 │   ├── tilelang_knowledge/          # Pre-generated knowledge base
 │   │   ├── retrieval_plan.md
 │   │   ├── capability_map.json
@@ -118,6 +127,7 @@ tilelang-operator-dev/
 │   └── failure-cases.md
 │
 └── tests/                           # Test cases
+    ├── test_mcp_server.py           # Automated pytest suite
     ├── test_cases.md
     └── eval.yaml
 ```
@@ -184,41 +194,45 @@ Conservative with WGMMA, TCGEN05, TMA, `cp.async`, MFMA, LDS, TMEM, `cluster_dim
 
 ## Development
 
+> **Note:** all commands below use `python`. On some Linux systems you may need `python3` instead.
+
 ### Running the MCP Server
 
 ```bash
-python3 scripts/tilelang_operator_mcp.py --check
+python scripts/tilelang_operator_mcp.py --check
 ```
-
-> **Windows users:** use `python` instead of `python3` — the `python3` alias is the Windows Store stub and will not work.
 
 ### Smoke Test (all 10 tools)
 
 ```bash
-python3 .claude/skills/run-tilelang-mcp/driver.py --smoke
+python .claude/skills/run-tilelang-mcp/driver.py --smoke
 ```
 
 ### List Available Tools
 
 ```bash
-python3 .claude/skills/run-tilelang-mcp/driver.py --list
+python .claude/skills/run-tilelang-mcp/driver.py --list
 ```
 
 ### Call a Single Tool
 
 ```bash
-python3 .claude/skills/run-tilelang-mcp/driver.py --call normalize_device_profile --args '{"vendor":"nvidia","model":"H100","target":"cuda"}'
+python .claude/skills/run-tilelang-mcp/driver.py --call normalize_device_profile --args '{"vendor":"nvidia","model":"H100","target":"cuda"}'
 ```
 
 ### Raw JSON-RPC Test
 
 ```bash
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | python3 scripts/tilelang_operator_mcp.py
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | python scripts/tilelang_operator_mcp.py
 ```
 
 ### Running Tests
 
-See `tests/test_cases.md` for manual test cases. Automated testing coming soon.
+```bash
+python -m pytest tests/test_mcp_server.py -v
+```
+
+See `tests/test_cases.md` for additional manual test cases.
 
 ## License
 

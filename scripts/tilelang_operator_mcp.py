@@ -6,7 +6,6 @@ import json
 import os
 import re
 import sys
-import traceback
 from pathlib import Path
 from typing import Any
 
@@ -303,7 +302,11 @@ def normalize_device(args: dict[str, Any]) -> dict[str, Any]:
                 suggested, confidence = "cuda -arch=sm_100a", 0.75
                 notes.append("Blackwell target support should be checked against the current TileLang repository.")
             elif "sm_" in combined:
-                suggested, confidence = f"cuda -arch={re.search(r'sm_[0-9a-z]+', combined).group(0)}", 0.85
+                sm_match = re.search(r'sm_[0-9a-z]+', combined)
+                if sm_match:
+                    suggested, confidence = f"cuda -arch={sm_match.group(0)}", 0.85
+                else:
+                    suggested, confidence = "cuda", 0.55
             else:
                 suggested, confidence = "cuda", 0.55
                 notes.append("Exact NVIDIA compute capability was not provided.")
@@ -386,7 +389,7 @@ def search_patterns(args: dict[str, Any]) -> dict[str, Any]:
             continue
         hay = normalize_text(rec)
         if capability_id and capability_id not in hay:
-            pass
+            continue
         score = score_record(rec, query + " " + capability_id, ["pattern_id", "pattern_name", "category", "task_family", "summary", "required_symbols", "related_usage_patterns", "device_strategy"])
         if score > 0 or not query:
             scored.append((score, rec))
@@ -649,8 +652,16 @@ def run_server() -> None:
                     handle(item)
             else:
                 handle(payload)
+        except McpError as exc:
+            err = {"error": str(exc)}
+            msg_id = None
+            try:
+                msg_id = payload.get("id") if isinstance(payload, dict) else None  # type: ignore[name-defined]
+            except Exception:
+                pass
+            respond(msg_id, {"content": [{"type": "text", "text": json.dumps(err, ensure_ascii=False, indent=2)}], "isError": True})
         except Exception as exc:
-            err = {"error": str(exc), "traceback": traceback.format_exc(limit=3)}
+            err = {"error": f"Internal error: {type(exc).__name__}"}
             msg_id = None
             try:
                 msg_id = payload.get("id") if isinstance(payload, dict) else None  # type: ignore[name-defined]
@@ -659,12 +670,77 @@ def run_server() -> None:
             respond(msg_id, {"content": [{"type": "text", "text": json.dumps(err, ensure_ascii=False, indent=2)}], "isError": True})
 
 
+def run_check() -> dict[str, Any]:
+    """Deep self-check: verify knowledge base, parse files, and test a tool call."""
+    result: dict[str, Any] = {"serverInfo": SERVER_INFO, "checks": []}
+
+    # 1. Knowledge base discovery
+    kdir = BUILTIN_KNOWLEDGE
+    if kdir.is_dir():
+        result["checks"].append({"name": "knowledge_base_found", "status": "passed", "path": str(kdir)})
+    else:
+        result["checks"].append({"name": "knowledge_base_found", "status": "failed", "error": f"Not found: {kdir}"})
+        result["status"] = "failed"
+        return result
+
+    # 2. Required files
+    missing = [f for f in KNOWLEDGE_REQUIRED if not (kdir / f).is_file()]
+    if missing:
+        result["checks"].append({"name": "required_files", "status": "failed", "missing": missing})
+    else:
+        result["checks"].append({"name": "required_files", "status": "passed"})
+
+    # 3. JSON/JSONL parsing
+    parse_errors = {}
+    for name in JSON_FILES:
+        path = kdir / name
+        if path.is_file():
+            _, err = parse_json(path)
+            if err:
+                parse_errors[name] = err
+    for name in JSONL_FILES:
+        path = kdir / name
+        if path.is_file():
+            _, errors = parse_jsonl(path)
+            if errors:
+                parse_errors[name] = errors[:3]
+    if parse_errors:
+        result["checks"].append({"name": "parse_files", "status": "failed", "errors": parse_errors})
+    else:
+        result["checks"].append({"name": "parse_files", "status": "passed"})
+
+    # 4. Tool smoke test: call normalize_device_profile (no knowledge base needed)
+    try:
+        tool_result = normalize_device({"vendor": "nvidia", "model": "H100", "target": "cuda"})
+        if tool_result.get("status") in ("passed", "constrained"):
+            result["checks"].append({"name": "tool_call", "status": "passed", "tool": "normalize_device_profile"})
+        else:
+            result["checks"].append({"name": "tool_call", "status": "failed", "error": "Unexpected status"})
+    except Exception as exc:
+        result["checks"].append({"name": "tool_call", "status": "failed", "error": str(exc)})
+
+    # 5. Capability search against built-in knowledge base
+    try:
+        cap_result = search_capabilities({"query": "gemm", "max_results": 1})
+        if cap_result.get("status") == "passed" and cap_result.get("results"):
+            result["checks"].append({"name": "capability_search", "status": "passed"})
+        else:
+            result["checks"].append({"name": "capability_search", "status": "failed", "error": "No results"})
+    except Exception as exc:
+        result["checks"].append({"name": "capability_search", "status": "failed", "error": str(exc)})
+
+    all_passed = all(c["status"] == "passed" for c in result["checks"])
+    result["status"] = "passed" if all_passed else "failed"
+    return result
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="TileLang operator knowledge MCP server.")
-    parser.add_argument("--check", action="store_true", help="Run a syntax/import self-check and exit.")
+    parser.add_argument("--check", action="store_true", help="Run a deep self-check and exit.")
     args = parser.parse_args()
     if args.check:
-        print(json.dumps({"status": "passed", "serverInfo": SERVER_INFO}, ensure_ascii=False))
+        result = run_check()
+        print(json.dumps(result, ensure_ascii=False, indent=2))
         return
     run_server()
 

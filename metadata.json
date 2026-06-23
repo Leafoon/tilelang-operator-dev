@@ -8,8 +8,8 @@
     "url": "https://github.com/tile-ai/tilelang"
   },
   "license": "Apache-2.0",
-  "homepage": "https://github.com/your-username/tilelang-operator-dev",
-  "repository": "https://github.com/your-username/tilelang-operator-dev",
+  "homepage": "https://github.com/Leafoon/tilelang-operator-dev",
+  "repository": "https://github.com/Leafoon/tilelang-operator-dev",
   "keywords": [
     "tilelang",
     "gpu-kernels",

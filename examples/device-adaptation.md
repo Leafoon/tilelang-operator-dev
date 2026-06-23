@@ -17,9 +17,15 @@ Result: vendor=NVIDIA, suggested_target="cuda -arch=sm_90", confidence=0.9
 ### AMD MI300X
 ```
 Call: normalize_device_profile(vendor="AMD", model="MI300X")
-Result: vendor=AMD, suggested_target="hip -mcpu=gfx940", confidence=0.75
+Result: vendor=AMD, suggested_target="hip", confidence=0.5
 Notes: "Exact AMD gfx architecture is unknown; do not invent gfxXXX."
 ```
+
+> To get a specific gfx target, pass the architecture explicitly:
+> ```
+> Call: normalize_device_profile(vendor="AMD", model="MI300X", target="hip -mcpu=gfx940")
+> Result: vendor=AMD, suggested_target="hip -mcpu=gfx940", confidence=0.75
+> ```
 
 ### CPU
 ```

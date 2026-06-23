@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "tilelang-operator-knowledge": {
+      "command": "python",
+      "args": ["${workspaceFolder}/scripts/tilelang_operator_mcp.py"],
+      "env": {}
+    }
+  }
+}

@@ -24,7 +24,7 @@ categories:
   - name: search
     description: Tests for capability, pattern, and API search
     tests:
-      - test_gemM_capability_search
+      - test_gemm_capability_search
       - test_pattern_category_filter
       - test_api_lookup
 

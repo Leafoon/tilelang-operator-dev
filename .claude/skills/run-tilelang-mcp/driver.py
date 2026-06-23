@@ -130,6 +130,11 @@ def smoke_test():
     print(f"Running smoke test: {len(tools)} tools...\n")
     results = run_server(messages)
 
+    expected = len(tools) + 1  # init + tool calls
+    if len(results) < expected:
+        print(f"ERROR: Expected {expected} responses, got {len(results)}")
+        return False
+
     passed = 0
     failed = 0
     for i, result in enumerate(results):
