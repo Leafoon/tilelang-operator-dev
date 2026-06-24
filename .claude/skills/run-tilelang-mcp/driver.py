@@ -109,7 +109,7 @@ def pretty(result: dict) -> str:
 
 
 def smoke_test():
-    """Run all 10 MCP tools and report results."""
+    """Run all MCP tools and report results."""
     tools = [
         ("inspect_tilelang_workspace", {}),
         ("validate_knowledge_base", {}),
@@ -121,6 +121,9 @@ def smoke_test():
         ("get_source_chunks", {"query": "gemm"}),
         ("trace_semantic_graph", {"query": "gemm"}),
         ("build_operator_retrieval_plan", {"operator_intent": "basic GEMM kernel for H100"}),
+        ("search_troubleshooting", {"query": "dtype mismatch"}),
+        ("validate_operator_code", {"code": "@tilelang.jit\ndef gemm(A, B): return None"}),
+        ("operator_development_wizard", {"current_step": 1, "operator_intent": "GEMM kernel"}),
     ]
 
     messages = [make_init()]

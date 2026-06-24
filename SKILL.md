@@ -104,8 +104,14 @@ When validation passes, begin with a short status:
 9. Dependency tracing: `trace_semantic_graph`
 10. Operator retrieval plan: `build_operator_retrieval_plan`
 11. Implementation, explanation, or validation plan
+12. Code quality validation: `validate_operator_code`
+13. Troubleshooting: `search_troubleshooting` (if errors occur)
 
 Only step 11 may generate final operator code.
+
+## Guided Workflow
+
+For a step-by-step guided experience, use `operator_development_wizard` which walks through all 12 stages of operator development from intent to code validation.
 
 ## Retrieval Order
 

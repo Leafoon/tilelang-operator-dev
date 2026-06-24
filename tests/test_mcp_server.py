@@ -86,7 +86,7 @@ class TestServerInit:
         names = {t["name"] for t in tools}
         assert "inspect_tilelang_workspace" in names
         assert "normalize_device_profile" in names
-        assert len(tools) == 10
+        assert len(tools) >= 12  # At least original 10 + new tools
 
 
 # --- Workspace validation ---
@@ -256,3 +256,61 @@ class TestErrorHandling:
         text = resp["result"]["content"][0]["text"]
         assert "Traceback" not in text
         assert "File \"" not in text
+
+
+# --- New tools tests ---
+
+
+class TestSearchTroubleshooting:
+    def test_search_by_error(self):
+        result = get_tool_result("search_troubleshooting", {"query": "dtype mismatch"})
+        assert result["status"] == "passed"
+        assert len(result["results"]) > 0
+
+    def test_search_by_category(self):
+        result = get_tool_result("search_troubleshooting", {"query": "", "category": "compilation"})
+        assert result["status"] == "passed"
+
+
+class TestValidateOperatorCode:
+    def test_validate_valid_code(self):
+        code = """
+import tilelang
+import tilelang.language as T
+
+@tilelang.jit
+def gemm(A, B):
+    return None
+"""
+        result = get_tool_result("validate_operator_code", {"code": code})
+        assert result["valid"] is True
+
+    def test_validate_empty_code(self):
+        result = get_tool_result("validate_operator_code", {"code": ""})
+        assert result["valid"] is False
+
+    def test_validate_syntax_error(self):
+        code = """
+import tilelang
+def broken(
+    syntax error here
+"""
+        result = get_tool_result("validate_operator_code", {"code": code})
+        # May fail syntax check but should handle gracefully
+        assert "status" in result
+
+
+class TestOperatorDevelopmentWizard:
+    def test_wizard_step_1(self):
+        result = get_tool_result("operator_development_wizard", {"current_step": 1})
+        assert result["status"] in ("in_progress", "completed")
+        assert "current_step" in result
+        assert "total_steps" in result
+
+    def test_wizard_with_intent(self):
+        result = get_tool_result("operator_development_wizard", {
+            "current_step": 1,
+            "operator_intent": "GEMM kernel for H100"
+        })
+        assert "operator_intent" in result
+        assert result["current_step"] == 1

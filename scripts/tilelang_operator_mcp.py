@@ -219,21 +219,59 @@ def tokens(query: str) -> list[str]:
     return [t for t in re.split(r"[^A-Za-z0-9_+.-]+", query.lower()) if len(t) >= 2]
 
 
-def score_record(record: dict[str, Any], query: str, fields: list[str]) -> float:
+def score_record(record: dict[str, Any], query: str, fields: list[str]) -> tuple[float, dict[str, Any]]:
+    """Score a record against a query and return (score, match_explanation)."""
     query_terms = tokens(query)
     if not query_terms:
-        return 0.0
+        return 0.0, {"matched_terms": [], "matched_fields": [], "exact_matches": [], "partial_matches": []}
+
     hay = " ".join(normalize_text(record.get(f)) for f in fields).lower()
     score = 0.0
+    match_details = {
+        "matched_terms": [],
+        "matched_fields": [],
+        "exact_matches": [],
+        "partial_matches": []
+    }
+
     for term in query_terms:
-        if term in hay:
+        term_in_any_field = False
+        for field in fields:
+            field_value = normalize_text(record.get(field)).lower()
+            if term in field_value:
+                term_in_any_field = True
+                if field not in match_details["matched_fields"]:
+                    match_details["matched_fields"].append(field)
+
+        if term_in_any_field:
+            match_details["matched_terms"].append(term)
             score += 1.0
-        if re.search(rf"\b{re.escape(term)}\b", hay):
-            score += 0.5
-    return score
+
+            # Check for exact word boundary match
+            for field in fields:
+                field_value = normalize_text(record.get(field)).lower()
+                if re.search(rf"\b{re.escape(term)}\b", field_value):
+                    match_details["exact_matches"].append({"term": term, "field": field})
+                    score += 0.5
+                    break
+            else:
+                match_details["partial_matches"].append(term)
+
+    # Generate human-readable explanation
+    explanations = []
+    if match_details["exact_matches"]:
+        exact_fields = set(m["field"] for m in match_details["exact_matches"])
+        exact_terms = set(m["term"] for m in match_details["exact_matches"])
+        explanations.append(f"Exact match for terms [{', '.join(exact_terms)}] in fields: {', '.join(exact_fields)}")
+    if match_details["partial_matches"]:
+        explanations.append(f"Partial match for terms: {', '.join(match_details['partial_matches'])}")
+
+    match_details["explanation"] = "; ".join(explanations) if explanations else "No query terms matched"
+    return score, match_details
 
 
-def capability_keyword_boost(capability_id: str, query: str) -> float:
+def capability_keyword_boost(capability_id: str, query: str) -> tuple[float, list[str]]:
+    """Calculate keyword boost score and return (score, matched_keywords)."""
     q = query.lower()
     boosts = {
         "gemm_like_patterns": ["gemm", "matmul", "matrix multiply", "grouped", "split-k", "dequant", "sparse"],
@@ -248,7 +286,12 @@ def capability_keyword_boost(capability_id: str, query: str) -> float:
         "testing_and_validation_support": ["validate", "test", "benchmark", "profile", "profiler"],
     }
     weight = 5.0 if capability_id == "gemm_like_patterns" and any(t in q for t in ["gemm", "matmul"]) else 3.0
-    return sum(weight for term in boosts.get(capability_id, []) if term in q)
+    matched = [term for term in boosts.get(capability_id, []) if term in q]
+    total_score = len(matched) * weight
+    boost_explanation = []
+    if matched:
+        boost_explanation.append(f"Category keyword boost: matched {len(matched)} terms from {capability_id} category: {', '.join(matched)} (weight: {weight})")
+    return total_score, boost_explanation
 
 
 def load_json(root: Path, name: str) -> dict[str, Any]:
@@ -355,10 +398,24 @@ def search_capabilities(args: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(rec, dict):
             continue
         cap_id = normalize_text(rec.get("capability_id"))
-        score = score_record(rec, query, ["capability_id", "summary", "primary_symbols", "related_patterns", "when_to_use", "device_adaptation"])
-        score += capability_keyword_boost(cap_id, query)
+        score, match_details = score_record(rec, query, ["capability_id", "summary", "primary_symbols", "related_patterns", "when_to_use", "device_adaptation"])
+        boost_score, boost_explanation = capability_keyword_boost(cap_id, query)
+        score += boost_score
+
+        # Build match reason
+        match_reasons = []
+        if match_details.get("explanation"):
+            match_reasons.append(match_details["explanation"])
+        match_reasons.extend(boost_explanation)
+
+        rec_with_match = dict(rec)
+        rec_with_match["_match_reason"] = "; ".join(match_reasons) if match_reasons else "Returned all results (empty query)"
+        rec_with_match["_relevance_score"] = round(score, 2)
+        rec_with_match["_matched_terms"] = match_details.get("matched_terms", [])
+        rec_with_match["_matched_fields"] = match_details.get("matched_fields", [])
+
         if score > 0 or not query:
-            scored.append((score, rec))
+            scored.append((score, rec_with_match))
     scored.sort(key=lambda x: (x[0], x[1].get("confidence", 0)), reverse=True)
     results = []
     for rec in limit_results([r for _, r in scored], args.get("max_results")):
@@ -370,6 +427,10 @@ def search_capabilities(args: dict[str, Any]) -> dict[str, Any]:
             "device_adaptation": rec.get("device_adaptation"),
             "confidence": rec.get("confidence"),
             "evidence": rec.get("evidence"),
+            "match_reason": rec.get("_match_reason"),
+            "relevance_score": rec.get("_relevance_score"),
+            "matched_terms": rec.get("_matched_terms"),
+            "matched_fields": rec.get("_matched_fields"),
         })
     return {"status": "passed", "results": results}
 
@@ -390,9 +451,27 @@ def search_patterns(args: dict[str, Any]) -> dict[str, Any]:
         hay = normalize_text(rec)
         if capability_id and capability_id not in hay:
             continue
-        score = score_record(rec, query + " " + capability_id, ["pattern_id", "pattern_name", "category", "task_family", "summary", "required_symbols", "related_usage_patterns", "device_strategy"])
+        score, match_details = score_record(rec, query + " " + capability_id, ["pattern_id", "pattern_name", "category", "task_family", "summary", "required_symbols", "related_usage_patterns", "device_strategy"])
+
+        # Build match reason
+        match_reasons = []
+        if match_details.get("explanation"):
+            match_reasons.append(match_details["explanation"])
+        if capability_id and capability_id in hay:
+            match_reasons.append(f"Filtered by capability_id: {capability_id}")
+        if category:
+            match_reasons.append(f"Filtered by category: {category}")
+        if task_family:
+            match_reasons.append(f"Filtered by task_family: {task_family}")
+
+        rec_with_match = dict(rec)
+        rec_with_match["_match_reason"] = "; ".join(match_reasons) if match_reasons else "Returned all results (empty query)"
+        rec_with_match["_relevance_score"] = round(score, 2)
+        rec_with_match["_matched_terms"] = match_details.get("matched_terms", [])
+        rec_with_match["_matched_fields"] = match_details.get("matched_fields", [])
+
         if score > 0 or not query:
-            scored.append((score, rec))
+            scored.append((score, rec_with_match))
     scored.sort(key=lambda x: (x[0], x[1].get("confidence", 0)), reverse=True)
     results = []
     for rec in limit_results([r for _, r in scored], args.get("max_results")):
@@ -408,6 +487,10 @@ def search_patterns(args: dict[str, Any]) -> dict[str, Any]:
             "reuse_guidance": rec.get("reuse_guidance"),
             "confidence": rec.get("confidence"),
             "evidence": rec.get("evidence"),
+            "match_reason": rec.get("_match_reason"),
+            "relevance_score": rec.get("_relevance_score"),
+            "matched_terms": rec.get("_matched_terms"),
+            "matched_fields": rec.get("_matched_fields"),
         })
     return {"status": "passed", "results": results}
 
@@ -420,9 +503,25 @@ def search_usage_patterns(args: dict[str, Any]) -> dict[str, Any]:
     records = load_jsonl(root, "usage_patterns.jsonl")
     scored = []
     for rec in records:
-        score = score_record(rec, query + " " + pattern_id + " " + symbols, ["usage_id", "scenario", "goal", "ordered_steps", "symbols_used", "source_files", "device_execution_notes"])
+        score, match_details = score_record(rec, query + " " + pattern_id + " " + symbols, ["usage_id", "scenario", "goal", "ordered_steps", "symbols_used", "source_files", "device_execution_notes"])
+
+        # Build match reason
+        match_reasons = []
+        if match_details.get("explanation"):
+            match_reasons.append(match_details["explanation"])
+        if pattern_id:
+            match_reasons.append(f"Pattern ID context: {pattern_id}")
+        if symbols:
+            match_reasons.append(f"Symbols context: {symbols}")
+
+        rec_with_match = dict(rec)
+        rec_with_match["_match_reason"] = "; ".join(match_reasons) if match_reasons else "Returned all results (empty query)"
+        rec_with_match["_relevance_score"] = round(score, 2)
+        rec_with_match["_matched_terms"] = match_details.get("matched_terms", [])
+        rec_with_match["_matched_fields"] = match_details.get("matched_fields", [])
+
         if score > 0 or not query:
-            scored.append((score, rec))
+            scored.append((score, rec_with_match))
     scored.sort(key=lambda x: (x[0], x[1].get("confidence", 0)), reverse=True)
     results = []
     for rec in limit_results([r for _, r in scored], args.get("max_results")):
@@ -437,6 +536,10 @@ def search_usage_patterns(args: dict[str, Any]) -> dict[str, Any]:
             "device_execution_notes": rec.get("device_execution_notes"),
             "confidence": rec.get("confidence"),
             "evidence": rec.get("evidence"),
+            "match_reason": rec.get("_match_reason"),
+            "relevance_score": rec.get("_relevance_score"),
+            "matched_terms": rec.get("_matched_terms"),
+            "matched_fields": rec.get("_matched_fields"),
         })
     return {"status": "passed", "results": results}
 
@@ -454,9 +557,27 @@ def lookup_apis(args: dict[str, Any]) -> dict[str, Any]:
             continue
         if module and module not in normalize_text(rec.get("module")).lower():
             continue
-        score = score_record(rec, query + " " + symbols, ["qualified_name", "signature", "docstring", "short_summary", "operator_relevance", "module"])
+        score, match_details = score_record(rec, query + " " + symbols, ["qualified_name", "signature", "docstring", "short_summary", "operator_relevance", "module"])
+
+        # Build match reason
+        match_reasons = []
+        if match_details.get("explanation"):
+            match_reasons.append(match_details["explanation"])
+        if visibility:
+            match_reasons.append(f"Filtered by visibility: {visibility}")
+        if module:
+            match_reasons.append(f"Filtered by module: {module}")
+        if symbols:
+            match_reasons.append(f"Symbols context: {symbols}")
+
+        rec_with_match = dict(rec)
+        rec_with_match["_match_reason"] = "; ".join(match_reasons) if match_reasons else "Returned all results (empty query)"
+        rec_with_match["_relevance_score"] = round(score, 2)
+        rec_with_match["_matched_terms"] = match_details.get("matched_terms", [])
+        rec_with_match["_matched_fields"] = match_details.get("matched_fields", [])
+
         if score > 0 or not query:
-            scored.append((score, rec))
+            scored.append((score, rec_with_match))
     scored.sort(key=lambda x: (x[0], normalize_text(x[1].get("visibility")) == "public"), reverse=True)
     results = []
     for rec in limit_results([r for _, r in scored], args.get("max_results")):
@@ -471,6 +592,10 @@ def lookup_apis(args: dict[str, Any]) -> dict[str, Any]:
             "line_end": rec.get("line_end"),
             "operator_relevance": rec.get("operator_relevance"),
             "evidence": rec.get("evidence"),
+            "match_reason": rec.get("_match_reason"),
+            "relevance_score": rec.get("_relevance_score"),
+            "matched_terms": rec.get("_matched_terms"),
+            "matched_fields": rec.get("_matched_fields"),
         })
     return {"status": "passed", "results": results}
 
@@ -484,13 +609,33 @@ def get_source_chunks(args: dict[str, Any]) -> dict[str, Any]:
     records = load_jsonl(root, "source_chunks.jsonl")
     scored = []
     for rec in records:
-        score = score_record(rec, query + " " + capability_id + " " + pattern_id + " " + symbols, ["chunk_id", "symbols", "summary", "why_it_matters", "related_capabilities", "related_patterns", "device_notes"])
+        score, match_details = score_record(rec, query + " " + capability_id + " " + pattern_id + " " + symbols, ["chunk_id", "symbols", "summary", "why_it_matters", "related_capabilities", "related_patterns", "device_notes"])
+
+        # Capability and pattern boosts
+        boost_reasons = []
         if capability_id and capability_id in normalize_text(rec.get("related_capabilities")):
             score += 2
+            boost_reasons.append(f"Capability match boost (+2): {capability_id}")
         if pattern_id and pattern_id in normalize_text(rec.get("related_patterns")):
             score += 2
+            boost_reasons.append(f"Pattern match boost (+2): {pattern_id}")
+
+        # Build match reason
+        match_reasons = []
+        if match_details.get("explanation"):
+            match_reasons.append(match_details["explanation"])
+        match_reasons.extend(boost_reasons)
+        if symbols:
+            match_reasons.append(f"Symbols context: {symbols}")
+
+        rec_with_match = dict(rec)
+        rec_with_match["_match_reason"] = "; ".join(match_reasons) if match_reasons else "Returned all results (empty query)"
+        rec_with_match["_relevance_score"] = round(score, 2)
+        rec_with_match["_matched_terms"] = match_details.get("matched_terms", [])
+        rec_with_match["_matched_fields"] = match_details.get("matched_fields", [])
+
         if score > 0 or not query:
-            scored.append((score, rec))
+            scored.append((score, rec_with_match))
     scored.sort(key=lambda x: x[0], reverse=True)
     results = []
     for rec in limit_results([r for _, r in scored], args.get("max_results")):
@@ -509,6 +654,10 @@ def get_source_chunks(args: dict[str, Any]) -> dict[str, Any]:
             "related_capabilities": rec.get("related_capabilities"),
             "related_patterns": rec.get("related_patterns"),
             "source_excerpt": source,
+            "match_reason": rec.get("_match_reason"),
+            "relevance_score": rec.get("_relevance_score"),
+            "matched_terms": rec.get("_matched_terms"),
+            "matched_fields": rec.get("_matched_fields"),
         })
     return {"status": "passed", "results": results}
 
@@ -529,8 +678,10 @@ def trace_semantic_graph(args: dict[str, Any]) -> dict[str, Any]:
             continue
         if node_id and n.get("id") == node_id:
             matched_nodes.append(n)
-        elif query and score_record(n, query, ["id", "label", "type", "attrs"]) > 0:
-            matched_nodes.append(n)
+        elif query:
+            score, _ = score_record(n, query, ["id", "label", "type", "attrs"])
+            if score > 0:
+                matched_nodes.append(n)
     node_ids = {n.get("id") for n in matched_nodes}
     matched_edges = []
     for e in edges if isinstance(edges, list) else []:
@@ -542,8 +693,10 @@ def trace_semantic_graph(args: dict[str, Any]) -> dict[str, Any]:
             matched_edges.append(e)
         elif node_ids and (e.get("source") in node_ids or e.get("target") in node_ids):
             matched_edges.append(e)
-        elif query and score_record(e, query, ["source", "target", "edge_type"]) > 0:
-            matched_edges.append(e)
+        elif query:
+            score, _ = score_record(e, query, ["source", "target", "edge_type"])
+            if score > 0:
+                matched_edges.append(e)
     return {
         "status": "passed",
         "nodes": limit_results(matched_nodes, max_results),
@@ -587,6 +740,401 @@ def build_operator_retrieval_plan(args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def search_troubleshooting(args: dict[str, Any]) -> dict[str, Any]:
+    """Search troubleshooting knowledge base for common issues and solutions."""
+    root = workspace_root(args.get("workspace_path"))
+    query = normalize_text(args.get("query"))
+    error_message = normalize_text(args.get("error_message"))
+    category = normalize_text(args.get("category")).lower()
+    severity = normalize_text(args.get("severity")).lower()
+
+    knowledge_dir = Path(__file__).resolve().parent.parent / "resources" / "tilelang_knowledge"
+    troubleshooting_path = knowledge_dir / "troubleshooting.jsonl"
+
+    if not troubleshooting_path.is_file():
+        return {
+            "status": "failed",
+            "error": "troubleshooting.jsonl not found in knowledge base",
+            "results": []
+        }
+
+    records, _ = parse_jsonl(troubleshooting_path)
+    scored = []
+
+    for rec in records:
+        # Filter by category if specified
+        if category and category != normalize_text(rec.get("category")).lower():
+            continue
+        # Filter by severity if specified
+        if severity and severity != normalize_text(rec.get("severity")).lower():
+            continue
+
+        # Score against query and error message
+        search_query = query + " " + error_message
+        score, match_details = score_record(rec, search_query, [
+            "title", "description", "error_patterns", "solution",
+            "category", "related_symbols", "issue_id"
+        ])
+
+        # Bonus for exact error pattern matches
+        error_patterns = rec.get("error_patterns", [])
+        if isinstance(error_patterns, list):
+            for pattern in error_patterns:
+                pattern_norm = normalize_text(pattern).lower()
+                query_norm = search_query.lower()
+                if pattern_norm and pattern_norm in query_norm:
+                    score += 3.0  # Higher weight for error message matches
+
+        # Build match reason
+        match_reasons = []
+        if match_details.get("explanation"):
+            match_reasons.append(match_details["explanation"])
+        if category:
+            match_reasons.append(f"Filtered by category: {category}")
+        if severity:
+            match_reasons.append(f"Filtered by severity: {severity}")
+
+        rec_with_match = dict(rec)
+        rec_with_match["_match_reason"] = "; ".join(match_reasons) if match_reasons else "Returned all results (empty query)"
+        rec_with_match["_relevance_score"] = round(score, 2)
+        rec_with_match["_matched_terms"] = match_details.get("matched_terms", [])
+
+        if score > 0 or not query:
+            scored.append((score, rec_with_match))
+
+    scored.sort(key=lambda x: (x[0], {"critical": 4, "high": 3, "medium": 2, "low": 1}.get(x[1].get("severity", "low"), 0)), reverse=True)
+    results = []
+    for rec in limit_results([r for _, r in scored], args.get("max_results")):
+        results.append({
+            "issue_id": rec.get("issue_id"),
+            "title": rec.get("title"),
+            "category": rec.get("category"),
+            "severity": rec.get("severity"),
+            "description": rec.get("description"),
+            "error_patterns": rec.get("error_patterns"),
+            "solution": rec.get("solution"),
+            "example_fix": rec.get("example_fix"),
+            "related_symbols": rec.get("related_symbols"),
+            "evidence": rec.get("evidence"),
+            "match_reason": rec.get("_match_reason"),
+            "relevance_score": rec.get("_relevance_score"),
+            "matched_terms": rec.get("_matched_terms"),
+        })
+
+    return {"status": "passed", "results": results}
+
+
+def validate_operator_code(args: dict[str, Any]) -> dict[str, Any]:
+    """Validate generated TileLang operator code for syntax, structure, and common issues.
+
+    This performs static analysis without requiring TileLang to be installed.
+    """
+    code = normalize_text(args.get("code", ""))
+    target = normalize_text(args.get("target", "cuda"))
+    run_static_check = args.get("run_static_check", True)
+
+    if not code or len(code.strip()) < 10:
+        return {
+            "status": "failed",
+            "valid": False,
+            "error": "Code is empty or too short",
+            "checks": []
+        }
+
+    checks = []
+    warnings = []
+    errors = []
+
+    # 1. Check for basic structure
+    if "@tilelang.jit" not in code and "@tilelang.jit" not in code:
+        warnings.append("Missing @tilelang.jit decorator - code may not compile as a TileLang kernel")
+
+    # 2. Check for Tensor declaration pattern
+    if "T.Tensor" not in code and "Tensor" not in code:
+        warnings.append("No T.Tensor declarations found - this may not be a complete TileLang operator")
+
+    # 3. Check for imports
+    if "import tilelang" not in code and "from tilelang" not in code:
+        warnings.append("Missing 'import tilelang' statement")
+    if "import tilelang.language" not in code and "from tilelang.language" not in code:
+        if "T." in code:
+            warnings.append("Using T.* without importing tilelang.language as T")
+
+    # 4. Check for common anti-patterns
+    common_issues = {
+        "print(": "Python print() will not work inside TileLang kernels - use T.print() if available",
+        "list(": "Python list() may not work inside TileLang kernels - use T.Tensor or T.alloc_shared",
+        "dict(": "Python dict() may not work inside TileLang kernels",
+        "for i in range": "Use T.for_range() instead of Python range() inside kernels",
+        "if ": "Simple Python if may not work for tensor conditions - consider T.if()",
+    }
+    for pattern, message in common_issues.items():
+        if pattern in code:
+            warnings.append(f"Potential issue: {message}")
+
+    # 5. Check for kernel structure
+    has_kernel = "T.Kernel" in code or "with Kernel" in code
+    has_shared = "T.alloc_shared" in code or "alloc_shared" in code
+    has_pipelined = "T.Pipelined" in code or "Pipelined" in code
+
+    checks.append({
+        "check": "kernel_structure",
+        "status": "info",
+        "message": "Kernel structure analysis",
+        "details": {
+            "has_T_Kernel": has_kernel,
+            "has_shared_memory": has_shared,
+            "has_pipelining": has_pipelined,
+        }
+    })
+
+    # 6. Check for device-specific features
+    device_features = []
+    if "sm_90" in code or "H100" in code or "hopper" in code.lower():
+        device_features.append("H100/Hopper specific features detected")
+    if "sm_80" in code or "A100" in code or "ampere" in code.lower():
+        device_features.append("A100/Ampere specific features detected")
+    if "wgmma" in code.lower():
+        device_features.append("WGMMA tensor intrinsics detected - Hopper+ only")
+    if "TMA" in code or "tma_copy" in code.lower():
+        device_features.append("TMA memory operations detected - Hopper+ only")
+
+    if device_features:
+        checks.append({
+            "check": "device_features",
+            "status": "info",
+            "message": "Device-specific features detected",
+            "details": device_features
+        })
+
+    # 7. Syntax validation (basic Python syntax check)
+    if run_static_check:
+        import ast
+        try:
+            ast.parse(code)
+            checks.append({
+                "check": "python_syntax",
+                "status": "passed",
+                "message": "Python syntax is valid"
+            })
+        except SyntaxError as e:
+            errors.append(f"Python syntax error: {e.msg} at line {e.lineno}")
+            checks.append({
+                "check": "python_syntax",
+                "status": "failed",
+                "message": f"Syntax error: {e.msg}",
+                "line": e.lineno
+            })
+
+    # 8. Check for common GEMM patterns
+    gemm_indicators = ["gemm", "matmul", "A[i, k]", "B[k, j]", "C[i, j]"]
+    gemm_score = sum(1 for ind in gemm_indicators if ind.lower() in code.lower())
+    if gemm_score >= 2:
+        checks.append({
+            "check": "operator_type",
+            "status": "info",
+            "message": f"Appears to be a GEMM-like operator (score: {gemm_score}/4)"
+        })
+
+    # 9. Check for proper output handling
+    if "out_idx" in code:
+        checks.append({
+            "check": "output_handling",
+            "status": "info",
+            "message": "out_idx specified in @tilelang.jit decorator"
+        })
+
+    # Overall result
+    overall_status = "passed" if not errors else "failed"
+    if warnings and not errors:
+        overall_status = "warnings"
+
+    return {
+        "status": overall_status,
+        "valid": len(errors) == 0,
+        "checks_performed": checks,
+        "warnings": warnings,
+        "errors": errors,
+        "recommendations": [
+            "Always test compiled kernels with small inputs before benchmarking",
+            "Validate numerical correctness against reference implementation",
+            "Check that tensor shapes and dtypes match between kernel and inputs",
+        ],
+        "code_size": len(code),
+        "target_device": target
+    }
+
+
+def operator_development_wizard(args: dict[str, Any]) -> dict[str, Any]:
+    """Step-by-step wizard to guide operator development.
+
+    This tool provides a guided workflow that walks the user through
+    each step of TileLang operator development, from intent to validation.
+    """
+    current_step = args.get("current_step", 1)
+    operator_intent = normalize_text(args.get("operator_intent", ""))
+    device_profile = args.get("device_profile", {})
+    workspace_path = args.get("workspace_path")
+
+    # Define the workflow steps
+    workflow_steps = {
+        1: {
+            "step_id": 1,
+            "title": "Validate Workspace",
+            "description": "Check that you have a valid TileLang workspace and knowledge base",
+            "action_required": "Call inspect_tilelang_workspace and validate_knowledge_base",
+            "completion_criteria": "Both workspace and knowledge base validation pass",
+            "tools_to_use": ["inspect_tilelang_workspace", "validate_knowledge_base"]
+        },
+        2: {
+            "step_id": 2,
+            "title": "Define Operator Intent",
+            "description": "Clearly define what operator you want to develop",
+            "action_required": "Describe the operator: type (GEMM, attention, etc.), features, expected input/output shapes",
+            "completion_criteria": "Operator intent is clearly defined and contains operator type description",
+            "tools_to_use": []
+        },
+        3: {
+            "step_id": 3,
+            "title": "Normalize Device Profile",
+            "description": "Identify the target device and architecture",
+            "action_required": "Specify vendor (NVIDIA/AMD/CPU/Apple), model (A100/H100/MI300/etc.), and target",
+            "completion_criteria": "Device profile is normalized with confidence score",
+            "tools_to_use": ["normalize_device_profile"]
+        },
+        4: {
+            "step_id": 4,
+            "title": "Find Capability Match",
+            "description": "Search for matching capabilities in the knowledge base",
+            "action_required": "Use search_capabilities to find the right capability category",
+            "completion_criteria": "At least one capability candidate found with relevance score > 0",
+            "tools_to_use": ["search_capabilities"]
+        },
+        5: {
+            "step_id": 5,
+            "title": "Select Operator Pattern",
+            "description": "Find and select the most appropriate operator pattern",
+            "action_required": "Use search_patterns with capability ID to find matching patterns",
+            "completion_criteria": "Pattern candidates available with device strategy information",
+            "tools_to_use": ["search_patterns"]
+        },
+        6: {
+            "step_id": 6,
+            "title": "Review Usage Patterns",
+            "description": "Understand how to instantiate, compile, and test the operator",
+            "action_required": "Use search_usage_patterns to find example workflows for your pattern",
+            "completion_criteria": "Usage patterns retrieved with ordered_steps and prerequisites",
+            "tools_to_use": ["search_usage_patterns"]
+        },
+        7: {
+            "step_id": 7,
+            "title": "Confirm API Signatures",
+            "description": "Verify the APIs you'll need to use",
+            "action_required": "Use lookup_apis to confirm signatures for symbols required by the pattern",
+            "completion_criteria": "Required API symbols are found with visibility and module info",
+            "tools_to_use": ["lookup_apis"]
+        },
+        8: {
+            "step_id": 8,
+            "title": "Source Chunk Reference",
+            "description": "Get concrete source code examples for reference",
+            "action_required": "Use get_source_chunks for pattern-specific code examples",
+            "completion_criteria": "Source chunks retrieved with device notes",
+            "tools_to_use": ["get_source_chunks"]
+        },
+        9: {
+            "step_id": 9,
+            "title": "Build Retrieval Plan",
+            "description": "Assemble all retrieved information into a plan",
+            "action_required": "Call build_operator_retrieval_plan to synthesize findings",
+            "completion_criteria": "Complete retrieval plan generated with candidates and confidence",
+            "tools_to_use": ["build_operator_retrieval_plan"]
+        },
+        10: {
+            "step_id": 10,
+            "title": "Generate Code",
+            "description": "Generate the TileLang operator code",
+            "action_required": "Write the operator code using patterns and APIs from previous steps",
+            "completion_criteria": "Code generated with proper decorators and structure",
+            "tools_to_use": []
+        },
+        11: {
+            "step_id": 11,
+            "title": "Validate Generated Code",
+            "description": "Static analysis of the generated code",
+            "action_required": "Call validate_operator_code to check for issues",
+            "completion_criteria": "Code passes validation with no errors (warnings are OK)",
+            "tools_to_use": ["validate_operator_code"]
+        },
+        12: {
+            "step_id": 12,
+            "title": "Completion",
+            "description": "Operator development workflow complete!",
+            "action_required": "Review the generated operator and validation results",
+            "completion_criteria": "All previous steps completed successfully",
+            "tools_to_use": []
+        }
+    }
+
+    # Calculate progress
+    total_steps = len(workflow_steps)
+    progress_percent = round((current_step - 1) / total_steps * 100, 1)
+
+    # Get current step info
+    current = workflow_steps.get(current_step, workflow_steps[1])
+
+    # Get next steps
+    next_steps = []
+    for i in range(current_step + 1, min(current_step + 4, total_steps + 1)):
+        if i in workflow_steps:
+            next_steps.append({
+                "step_id": workflow_steps[i]["step_id"],
+                "title": workflow_steps[i]["title"]
+            })
+
+    # Auto-complete steps where possible
+    auto_completed = []
+    if current_step == 1 and workspace_path:
+        # Auto-run workspace validation
+        workspace_result = inspect_workspace({"workspace_path": workspace_path})
+        kb_result = validate_knowledge_base({"workspace_path": workspace_path})
+        auto_completed.append({
+            "step_id": 1,
+            "results": {
+                "workspace": workspace_result,
+                "knowledge_base": kb_result
+            },
+            "status": "completed" if workspace_result["status"] == "passed" and kb_result["status"] == "passed" else "needs_attention"
+        })
+
+    if current_step == 3 and device_profile:
+        # Auto-run device normalization
+        device_result = normalize_device(device_profile if isinstance(device_profile, dict) else {"model": normalize_text(device_profile)})
+        auto_completed.append({
+            "step_id": 3,
+            "results": device_result,
+            "status": "completed" if device_result["status"] == "passed" else "needs_attention"
+        })
+
+    return {
+        "status": "in_progress" if current_step < total_steps else "completed",
+        "current_step": current_step,
+        "current_step_info": current,
+        "total_steps": total_steps,
+        "progress_percent": progress_percent,
+        "next_steps": next_steps,
+        "auto_completed": auto_completed,
+        "operator_intent": operator_intent,
+        "device_profile": device_profile,
+        "tips": [
+            "Complete each step before moving to the next",
+            "Use the tools listed in each step to gather information",
+            "If you get stuck, use search_troubleshooting to find solutions",
+            "Review patterns from similar operators before writing code"
+        ]
+    }
+
+
 TOOLS = {
     "inspect_tilelang_workspace": inspect_workspace,
     "validate_knowledge_base": validate_knowledge,
@@ -598,6 +1146,9 @@ TOOLS = {
     "get_source_chunks": get_source_chunks,
     "trace_semantic_graph": trace_semantic_graph,
     "build_operator_retrieval_plan": build_operator_retrieval_plan,
+    "search_troubleshooting": search_troubleshooting,
+    "validate_operator_code": validate_operator_code,
+    "operator_development_wizard": operator_development_wizard,
 }
 
 
@@ -614,6 +1165,9 @@ def tool_definitions() -> list[dict[str, Any]]:
         {"name": "get_source_chunks", "description": "Retrieve source fallback chunks.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "capability_id": {"type": "string"}, "pattern_id": {"type": "string"}, "symbols": {"type": "array", "items": {"type": "string"}}, "max_results": {"type": "integer"}}}},
         {"name": "trace_semantic_graph", "description": "Trace semantic graph nodes and edges.", "inputSchema": {"type": "object", "properties": {**base_props, "node_id": {"type": "string"}, "query": {"type": "string"}, "edge_type": {"type": "string"}, "max_results": {"type": "integer"}}}},
         {"name": "build_operator_retrieval_plan", "description": "Build a structured retrieval plan for an operator intent.", "inputSchema": {"type": "object", "properties": {**base_props, "operator_intent": {"type": "string"}, "device_profile": {"type": "object"}}}},
+        {"name": "search_troubleshooting", "description": "Search troubleshooting knowledge base for common issues, errors, and solutions.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "error_message": {"type": "string", "description": "The actual error message to match"}, "category": {"type": "string", "description": "Issue category: compilation, runtime, performance, api, device, installation, pattern"}, "severity": {"type": "string", "description": "Issue severity: low, medium, high, critical"}, "max_results": {"type": "integer"}}}},
+        {"name": "validate_operator_code", "description": "Static analysis of TileLang operator code for syntax, structure, and common issues.", "inputSchema": {"type": "object", "properties": {"code": {"type": "string", "description": "The generated TileLang operator code to validate"}, "target": {"type": "string", "description": "Target device: cuda, hip, cpu, metal, webgpu"}, "run_static_check": {"type": "boolean", "description": "Whether to run Python AST syntax check"}}}},
+        {"name": "operator_development_wizard", "description": "Step-by-step guided workflow for TileLang operator development from intent to validation.", "inputSchema": {"type": "object", "properties": {"current_step": {"type": "integer", "description": "Current step in the workflow (1-12)"}, "operator_intent": {"type": "string", "description": "Description of the operator to develop"}, "device_profile": {"type": "object", "description": "Device profile information"}, "workspace_path": {"type": "string", "description": "TileLang repository workspace root"}}}},
     ]
 
 

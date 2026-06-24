@@ -148,8 +148,9 @@ tilelang-operator-dev/
 
 ## MCP Tools
 
-The MCP server provides these tools:
+The MCP server provides these tools (13 total):
 
+### Core Validation & Search
 - `inspect_tilelang_workspace`: validate TileLang repository and delivery directory presence
 - `validate_knowledge_base`: parse and count required JSON/JSONL delivery files
 - `normalize_device_profile`: normalize vendor/model/target without inventing unknown architectures
@@ -160,6 +161,11 @@ The MCP server provides these tools:
 - `get_source_chunks`: retrieve focused fallback chunks from `source_chunks.jsonl`
 - `trace_semantic_graph`: inspect related graph nodes and edges
 - `build_operator_retrieval_plan`: assemble a structured operator retrieval plan
+
+### New Quality & Guidance Tools
+- `search_troubleshooting`: search troubleshooting knowledge base for common issues, errors, and solutions
+- `validate_operator_code`: static analysis of TileLang operator code for syntax, structure, and common issues
+- `operator_development_wizard`: step-by-step guided workflow for TileLang operator development from intent to validation
 
 ## Standard Workflow
 
