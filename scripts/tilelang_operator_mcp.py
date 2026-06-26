@@ -19,19 +19,16 @@ if sys.platform == "win32":
 # This enables dual-workspace mode even when MCP doesn't pass env vars
 try:
     from dotenv import load_dotenv
-    # Look for .env in workspace root (parent of the directory containing this script)
-    # or in the current working directory
     cwd = Path.cwd()
     env_file = cwd / ".env"
     if env_file.exists():
         load_dotenv(env_file)
 except ImportError:
-    # python-dotenv is optional; users can set env vars directly via MCP config
     pass
 
 
 SUPPORTED_PROTOCOL = "2025-03-26"
-SERVER_INFO = {"name": "tilelang-operator-knowledge", "version": "0.4.0"}
+SERVER_INFO = {"name": "tilelang-operator-knowledge", "version": "0.4.1"}
 
 REPO_REQUIRED = [
     "tilelang/__init__.py",
@@ -85,13 +82,56 @@ def workspace_root(value: str | None) -> Path:
     return Path(value or ".").expanduser().resolve()
 
 
+def _is_valid_tilelang_repo(path: Path) -> bool:
+    """Check if a path looks like a valid TileLang source repository."""
+    return all((path / p).exists() for p in REPO_REQUIRED)
+
+
+def _auto_detect_tilelang(workspace: Path) -> list[Path]:
+    """Auto-detect TileLang source repository by checking sibling and parent directories.
+
+    Search scope (bounded):
+    - Sibling: {workspace}/../tilelang/
+    - Sibling: {skill_root}/../../tilelang/
+    - Up to 3 parent levels: {workspace}/../../tilelang/, etc.
+
+    Returns list of valid candidates (may be empty).
+    """
+    candidates = []
+
+    # Sibling of workspace
+    sibling = workspace.parent / "tilelang"
+    if sibling not in candidates and _is_valid_tilelang_repo(sibling):
+        candidates.append(sibling)
+
+    # Sibling of skill repo (two levels up from script)
+    skill_sibling = SKILL_ROOT.parent / "tilelang"
+    if skill_sibling not in candidates and _is_valid_tilelang_repo(skill_sibling):
+        candidates.append(skill_sibling)
+
+    # Walk up to 3 parent levels
+    current = workspace.resolve()
+    for _ in range(3):
+        parent_candidate = current / "tilelang"
+        if parent_candidate not in candidates and _is_valid_tilelang_repo(parent_candidate):
+            candidates.append(parent_candidate)
+        parent = current.parent
+        if parent == current:  # reached filesystem root
+            break
+        current = parent
+
+    return candidates
+
+
 def tilelang_source_root(workspace: Path, tilelang_path: str | None) -> Path:
     """Resolve TileLang source repository path.
 
     Priority (highest to lowest):
     1. Explicit tool parameter: tilelang_source_path
     2. Environment variable: TILELANG_SOURCE_PATH
-    3. Fallback: workspace_path (backward compatibility)
+    3. Auto-detect: sibling tilelang/ directory (zero config)
+    4. Auto-detect: walk up to 3 parent levels looking for tilelang/
+    5. Fallback: workspace_path (backward compatibility)
 
     Supports dual-workspace mode: operator workspace + TileLang source.
     """
@@ -104,8 +144,22 @@ def tilelang_source_root(workspace: Path, tilelang_path: str | None) -> Path:
     if env_path:
         return Path(env_path).expanduser().resolve()
 
-    # 3. Fallback to workspace (backward compatibility)
+    # 3-4. Auto-detect (smart discovery)
+    candidates = _auto_detect_tilelang(workspace)
+    if candidates:
+        # Return the first found; if multiple, the caller can use hint to ask user
+        return candidates[0]
+
+    # 5. Fallback to workspace (backward compatibility)
     return workspace
+
+
+def tilelang_source_candidates(workspace: Path) -> list[Path]:
+    """Return all auto-detected TileLang source candidates.
+
+    Used when multiple candidates are found and user needs to choose.
+    """
+    return _auto_detect_tilelang(workspace)
 
 
 # Built-in knowledge base bundled with the skill package
@@ -139,6 +193,9 @@ def inspect_workspace(args: dict[str, Any]) -> dict[str, Any]:
     # TileLang source path (may be different from operator workspace)
     tilelang_source = tilelang_source_root(operator_workspace, args.get("tilelang_source_path"))
 
+    # Auto-detect candidates for reporting
+    candidates = tilelang_source_candidates(operator_workspace)
+
     # Validate TileLang source repository
     missing_repo = [p for p in REPO_REQUIRED if not file_exists(tilelang_source, p)]
     has_backend = any((tilelang_source / p).is_dir() for p in REPO_ANY_DIRS)
@@ -161,6 +218,9 @@ def inspect_workspace(args: dict[str, Any]) -> dict[str, Any]:
     # Detect if we're in dual-workspace mode
     is_dual_workspace = str(operator_workspace) != str(tilelang_source)
 
+    # Check if TileLang was auto-detected (not explicitly configured)
+    explicit_path = args.get("tilelang_source_path") or os.environ.get("TILELANG_SOURCE_PATH")
+
     status = "passed" if not missing_repo and not missing_knowledge else "failed"
     result = {
         "status": status,
@@ -176,11 +236,20 @@ def inspect_workspace(args: dict[str, Any]) -> dict[str, Any]:
         "missing_knowledge_files": missing_knowledge,
     }
 
-    # Add helpful hint if TileLang source not found but env could be set
-    if missing_repo and is_dual_workspace:
-        result["hint"] = "Make sure TILELANG_SOURCE_PATH environment variable points to a valid TileLang repository."
-    elif missing_repo and not os.environ.get("TILELANG_SOURCE_PATH"):
-        result["hint"] = "For independent operator development, set TILELANG_SOURCE_PATH=/path/to/tilelang in your environment or .env file."
+    # Report auto-detection info
+    if not explicit_path and candidates:
+        if len(candidates) == 1:
+            result["auto_detected"] = True
+            result["auto_detected_path"] = str(candidates[0])
+        else:
+            result["auto_detected"] = True
+            result["multiple_candidates"] = [str(c) for c in candidates]
+            result["hint"] = f"Found {len(candidates)} TileLang source candidates. Use tilelang_source_path parameter to specify which one to use."
+
+    # Add helpful hint if TileLang source not found
+    if missing_repo:
+        if not candidates and not explicit_path:
+            result["hint"] = "TileLang source not found. Searched: sibling tilelang/, up to 3 parent levels. Use TILELANG_SOURCE_PATH env or tilelang_source_path parameter to specify manually."
 
     return result
 

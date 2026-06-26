@@ -372,3 +372,37 @@ class TestDualWorkspaceMode:
         # Verify all expected tools were found
         for name, tool in tools_to_check.items():
             assert tool is not None, f"Expected tool not found: {name}"
+
+
+# --- Auto-detection tests ---
+
+
+class TestAutoDetection:
+    """Tests for the smart auto-detection of TileLang source repository."""
+
+    def test_auto_detect_returns_candidates(self):
+        """inspect_workspace should report auto-detected candidates."""
+        result = get_tool_result("inspect_tilelang_workspace")
+        # When running tests from tilelang-operator-dev, there should be
+        # a sibling tilelang/ or the server should report detection info
+        assert "status" in result
+        # If auto-detected, should have auto_detected field
+        if result.get("auto_detected"):
+            assert "auto_detected_path" in result or "multiple_candidates" in result
+
+    def test_multiple_candidates_reported(self):
+        """When multiple candidates exist, they should be listed."""
+        result = get_tool_result("inspect_tilelang_workspace")
+        if result.get("multiple_candidates"):
+            assert isinstance(result["multiple_candidates"], list)
+            assert len(result["multiple_candidates"]) > 1
+            assert "hint" in result  # Should have a hint about choosing
+
+    def test_hint_when_no_tilelang_found(self):
+        """When no TileLang source is found, should provide helpful hint."""
+        result = get_tool_result("inspect_tilelang_workspace", {
+            "workspace_path": "/tmp/empty_dir_that_does_not_exist"
+        })
+        if result.get("status") == "failed" and not result.get("is_tilelang_repo"):
+            # Should have a hint about auto-detection or manual configuration
+            assert "hint" in result

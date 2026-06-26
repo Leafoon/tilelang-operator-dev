@@ -4,10 +4,7 @@
       "command": "python3",
       "args": [
         "${workspaceFolder}/../tilelang-operator-dev/scripts/tilelang_operator_mcp.py"
-      ],
-      "env": {
-        "TILELANG_SOURCE_PATH": "${workspaceFolder}/../tilelang"
-      }
+      ]
     }
   }
 }

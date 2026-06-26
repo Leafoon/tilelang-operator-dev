@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.1] - 2026-06-26
+
+### Added
+- **Smart Auto-Detection**: MCP server automatically finds TileLang source repository
+  - Searches sibling `tilelang/` directory first
+  - Walks up to 3 parent levels looking for `tilelang/`
+  - Validates candidates by checking `tilelang/__init__.py`
+  - Reports multiple candidates when found, lets user choose
+  - Zero configuration needed for common directory layouts
+
+### Removed
+- `.env.example` template - no longer needed with auto-detection
+- `--tilelang` parameter from `init_operator.py` - auto-detection handles this
+
+### Simplified
+- `operator_template/.mcp.json` - removed `env` block (no more `TILELANG_SOURCE_PATH` needed)
+- `operator_template/README.md` - updated to reflect zero-config workflow
+
 ## [0.4.0] - 2026-06-26
 
 ### Added

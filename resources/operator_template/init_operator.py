@@ -4,7 +4,6 @@
 Run this script to set up a new operator workspace or validate an existing one.
 """
 import argparse
-import os
 import shutil
 import sys
 from pathlib import Path
@@ -17,20 +16,31 @@ def print_banner():
     print()
 
 
-def validate_tilelang_source(path: str) -> bool:
+def find_tilelang_source() -> Path | None:
+    """Auto-detect TileLang source by checking sibling and parent directories."""
+    cwd = Path.cwd().resolve()
+
+    candidates = [
+        cwd / "tilelang",           # Same level
+        cwd.parent / "tilelang",    # One level up
+    ]
+
+    for candidate in candidates:
+        init_file = candidate / "tilelang" / "__init__.py"
+        if init_file.exists():
+            return candidate
+
+    return None
+
+
+def validate_tilelang_source(path: Path) -> bool:
     """Validate that a path contains a TileLang source checkout."""
-    p = Path(path).expanduser().resolve()
+    p = path.expanduser().resolve()
 
     required = [
         p / "tilelang" / "__init__.py",
         p / "tilelang" / "language" / "__init__.py",
     ]
-
-    optional_dirs = [p / "src" / "transform", p / "src" / "op"]
-    has_source = any(d.is_dir() for d in optional_dirs)
-
-    corpus_dirs = [p / "examples", p / "testing", p / "docs"]
-    has_corpus = any(d.is_dir() for d in corpus_dirs)
 
     missing = [r for r in required if not r.is_file()]
 
@@ -39,6 +49,12 @@ def validate_tilelang_source(path: str) -> bool:
         for m in missing:
             print(f"   - {m}")
         return False
+
+    optional_dirs = [p / "src" / "transform", p / "src" / "op"]
+    has_source = any(d.is_dir() for d in optional_dirs)
+
+    corpus_dirs = [p / "examples", p / "testing", p / "docs"]
+    has_corpus = any(d.is_dir() for d in corpus_dirs)
 
     if not has_source:
         print(f"⚠️  Missing TileLang source directories (src/transform or src/op)")
@@ -73,11 +89,6 @@ def main():
         description="Initialize TileLang operator workspace"
     )
     parser.add_argument(
-        "--tilelang",
-        type=str,
-        help="Path to TileLang source checkout",
-    )
-    parser.add_argument(
         "--new-operator",
         type=str,
         help="Name of a new operator to create from template",
@@ -95,6 +106,16 @@ def main():
     print(f"📂 Working directory: {workspace}")
     print()
 
+    # Auto-detect TileLang source
+    tilelang_source = find_tilelang_source()
+    if tilelang_source:
+        print(f"🔍 Auto-detected TileLang source: {tilelang_source}")
+        validate_tilelang_source(tilelang_source)
+    else:
+        print("ℹ️  TileLang source not auto-detected.")
+        print("   The MCP server will search when tools are called.")
+    print()
+
     # List existing operators
     if args.list:
         operators = [
@@ -109,39 +130,9 @@ def main():
             print("📭 No operators found in current directory")
         return 0
 
-    # Validate TileLang source
-    if args.tilelang:
-        print("🔍 Validating TileLang source...")
-        if not validate_tilelang_source(args.tilelang):
-            print(f"\n❌ Please provide a valid TileLang source directory")
-            return 1
-
-        # Update .env file
-        env_file = workspace / ".env"
-        tilelang_path = Path(args.tilelang).expanduser().resolve()
-
-        if env_file.exists():
-            content = env_file.read_text()
-            if "TILELANG_SOURCE_PATH" in content:
-                # Replace existing line
-                lines = content.splitlines()
-                new_lines = []
-                for line in lines:
-                    if line.startswith("TILELANG_SOURCE_PATH="):
-                        new_lines.append(f"TILELANG_SOURCE_PATH={tilelang_path}")
-                    else:
-                        new_lines.append(line)
-                env_file.write_text("\n".join(new_lines) + "\n")
-            else:
-                with env_file.open("a") as f:
-                    f.write(f"\nTILELANG_SOURCE_PATH={tilelang_path}\n")
-        else:
-            env_file.write_text(f"# TileLang Operator Development\nTILELANG_SOURCE_PATH={tilelang_path}\n")
-        print(f"✅ Updated .env with TILELANG_SOURCE_PATH={tilelang_path}")
-
     # Create new operator
     if args.new_operator:
-        print(f"\n🚀 Creating new operator: {args.new_operator}")
+        print(f"🚀 Creating new operator: {args.new_operator}")
         if not create_new_operator(args.new_operator, workspace):
             return 1
         print(f"\n💡 Next steps:")
