@@ -48,6 +48,46 @@ cp tilelang-operator-dev/resources/.mcp.json tilelang/
 # 6. Open tilelang/ in Claude Code and ask: "write a GEMM kernel for H100"
 ```
 
+### Independent Operator Development (Recommended)
+
+Keep your custom operators separate from TileLang source using **dual-workspace mode**:
+
+```bash
+# 1. Clone the skill and TileLang
+git clone https://github.com/Leafoon/tilelang-operator-dev.git
+git clone https://github.com/tile-ai/tilelang.git
+
+# 2. Create your operator workspace (separate from TileLang)
+cp -r tilelang-operator-dev/resources/operator_template my-operators
+cd my-operators
+
+# 3. Copy .env.example and configure paths
+cp .env.example .env
+# Edit .env: set TILELANG_SOURCE_PATH=/path/to/tilelang
+
+# 4. Edit .mcp.json — set the script path to the actual location
+#    of tilelang-operator-dev/scripts/tilelang_operator_mcp.py
+
+# 5. Open my-operators/ in Claude Code and ask:
+#    "develop a fused MoE operator for NVIDIA H100"
+```
+
+**Directory structure:**
+```
+my-projects/
+├── tilelang/                          # TileLang source (unchanged)
+├── tilelang-operator-dev/             # This skill repo
+└── my-operators/                      # Your operators!
+    ├── .mcp.json                      # MCP config
+    ├── .env                            # TILELANG_SOURCE_PATH=../tilelang
+    ├── fused_moe/                      # Your operator 1
+    │   ├── operator.py
+    │   ├── test_operator.py
+    │   └── benchmark.py
+    └── flash_attention_v2/             # Your operator 2
+        └── ...
+```
+
 ### Global Install (use from any directory)
 
 Copy the skill to your global Claude Code skills directory:
@@ -57,13 +97,7 @@ git clone https://github.com/Leafoon/tilelang-operator-dev.git
 cp -r tilelang-operator-dev/.claude/skills/run-tilelang-mcp ~/.claude/skills/
 ```
 
-Copy MCP config to your TileLang workspace:
-
-```bash
-cp tilelang-operator-dev/resources/.mcp.json your-workspace/
-```
-
-Update the path in `.mcp.json` to point to the actual location of `scripts/tilelang_operator_mcp.py`.
+Copy MCP config to your workspace and set `TILELANG_SOURCE_PATH` environment variable.
 
 > **Windows users:** use `.mcp.windows.json` instead — it uses `python` instead of `python3`:
 > ```bash
@@ -71,6 +105,8 @@ Update the path in `.mcp.json` to point to the actual location of `scripts/tilel
 > ```
 
 > **Note:** the knowledge base is built into the MCP server — no need to copy `tilelang_knowledge/` separately. The server automatically uses `resources/tilelang_knowledge/` from the skill package as a fallback.
+>
+> **Dual-Workspace Mode:** Set `TILELANG_SOURCE_PATH` environment variable to point to your TileLang source checkout. Your operator workspace can be completely separate from TileLang source code.
 
 ### Other MCP-compatible Tools
 

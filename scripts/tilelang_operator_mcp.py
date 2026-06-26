@@ -15,9 +15,23 @@ if sys.platform == "win32":
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
 
+# Load environment variables from .env file (if python-dotenv is available)
+# This enables dual-workspace mode even when MCP doesn't pass env vars
+try:
+    from dotenv import load_dotenv
+    # Look for .env in workspace root (parent of the directory containing this script)
+    # or in the current working directory
+    cwd = Path.cwd()
+    env_file = cwd / ".env"
+    if env_file.exists():
+        load_dotenv(env_file)
+except ImportError:
+    # python-dotenv is optional; users can set env vars directly via MCP config
+    pass
+
 
 SUPPORTED_PROTOCOL = "2025-03-26"
-SERVER_INFO = {"name": "tilelang-operator-knowledge", "version": "0.3.0"}
+SERVER_INFO = {"name": "tilelang-operator-knowledge", "version": "0.4.0"}
 
 REPO_REQUIRED = [
     "tilelang/__init__.py",
@@ -71,6 +85,29 @@ def workspace_root(value: str | None) -> Path:
     return Path(value or ".").expanduser().resolve()
 
 
+def tilelang_source_root(workspace: Path, tilelang_path: str | None) -> Path:
+    """Resolve TileLang source repository path.
+
+    Priority (highest to lowest):
+    1. Explicit tool parameter: tilelang_source_path
+    2. Environment variable: TILELANG_SOURCE_PATH
+    3. Fallback: workspace_path (backward compatibility)
+
+    Supports dual-workspace mode: operator workspace + TileLang source.
+    """
+    # 1. Try explicit parameter first
+    if tilelang_path:
+        return Path(tilelang_path).expanduser().resolve()
+
+    # 2. Try environment variable
+    env_path = os.environ.get("TILELANG_SOURCE_PATH")
+    if env_path:
+        return Path(env_path).expanduser().resolve()
+
+    # 3. Fallback to workspace (backward compatibility)
+    return workspace
+
+
 # Built-in knowledge base bundled with the skill package
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 BUILTIN_KNOWLEDGE = SKILL_ROOT / "resources" / "tilelang_knowledge"
@@ -96,17 +133,24 @@ def file_exists(root: Path, rel: str) -> bool:
 
 
 def inspect_workspace(args: dict[str, Any]) -> dict[str, Any]:
-    root = workspace_root(args.get("workspace_path"))
-    missing_repo = [p for p in REPO_REQUIRED if not file_exists(root, p)]
-    has_backend = any((root / p).is_dir() for p in REPO_ANY_DIRS)
-    has_corpus = any((root / p).is_dir() for p in REPO_CORPUS_DIRS)
+    # Operator workspace (where your operators live)
+    operator_workspace = workspace_root(args.get("workspace_path"))
+
+    # TileLang source path (may be different from operator workspace)
+    tilelang_source = tilelang_source_root(operator_workspace, args.get("tilelang_source_path"))
+
+    # Validate TileLang source repository
+    missing_repo = [p for p in REPO_REQUIRED if not file_exists(tilelang_source, p)]
+    has_backend = any((tilelang_source / p).is_dir() for p in REPO_ANY_DIRS)
+    has_corpus = any((tilelang_source / p).is_dir() for p in REPO_CORPUS_DIRS)
     if not has_backend:
         missing_repo.append("one of: " + ", ".join(REPO_ANY_DIRS))
     if not has_corpus:
         missing_repo.append("one of: " + ", ".join(REPO_CORPUS_DIRS))
 
-    local_kdir = root / "tilelang_knowledge"
-    kdir = knowledge_dir(root)
+    # Knowledge base: look first in operator workspace, then builtin
+    local_kdir = operator_workspace / "tilelang_knowledge"
+    kdir = knowledge_dir(operator_workspace)
     using_builtin = kdir == BUILTIN_KNOWLEDGE and not local_kdir.is_dir()
     missing_knowledge = []
     if not kdir.is_dir():
@@ -114,11 +158,16 @@ def inspect_workspace(args: dict[str, Any]) -> dict[str, Any]:
     else:
         missing_knowledge = [f"tilelang_knowledge/{p}" for p in KNOWLEDGE_REQUIRED if not (kdir / p).is_file()]
 
+    # Detect if we're in dual-workspace mode
+    is_dual_workspace = str(operator_workspace) != str(tilelang_source)
+
     status = "passed" if not missing_repo and not missing_knowledge else "failed"
-    return {
+    result = {
         "status": status,
-        "workspace_path": str(root),
-        "repo_root": str(root) if not missing_repo else None,
+        "operator_workspace_path": str(operator_workspace),
+        "tilelang_source_path": str(tilelang_source),
+        "workspace_mode": "dual" if is_dual_workspace else "single",
+        "repo_root": str(tilelang_source) if not missing_repo else None,
         "knowledge_path": str(kdir) if kdir.is_dir() else None,
         "knowledge_source": "builtin" if using_builtin else "workspace",
         "is_tilelang_repo": not missing_repo,
@@ -126,6 +175,14 @@ def inspect_workspace(args: dict[str, Any]) -> dict[str, Any]:
         "missing_repo_indicators": missing_repo,
         "missing_knowledge_files": missing_knowledge,
     }
+
+    # Add helpful hint if TileLang source not found but env could be set
+    if missing_repo and is_dual_workspace:
+        result["hint"] = "Make sure TILELANG_SOURCE_PATH environment variable points to a valid TileLang repository."
+    elif missing_repo and not os.environ.get("TILELANG_SOURCE_PATH"):
+        result["hint"] = "For independent operator development, set TILELANG_SOURCE_PATH=/path/to/tilelang in your environment or .env file."
+
+    return result
 
 
 def parse_json(path: Path) -> tuple[Any | None, str | None]:
@@ -156,9 +213,12 @@ def parse_jsonl(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
 
 
 def validate_knowledge(args: dict[str, Any]) -> dict[str, Any]:
-    root = workspace_root(args.get("workspace_path"))
-    local_kdir = root / "tilelang_knowledge"
-    kdir = knowledge_dir(root)
+    operator_workspace = workspace_root(args.get("workspace_path"))
+    tilelang_source = tilelang_source_root(operator_workspace, args.get("tilelang_source_path"))
+    is_dual_workspace = str(operator_workspace) != str(tilelang_source)
+
+    local_kdir = operator_workspace / "tilelang_knowledge"
+    kdir = knowledge_dir(operator_workspace)
     using_builtin = kdir == BUILTIN_KNOWLEDGE and not local_kdir.is_dir()
     missing = [p for p in KNOWLEDGE_REQUIRED if not (kdir / p).is_file()]
     parse_errors: dict[str, Any] = {}
@@ -195,7 +255,9 @@ def validate_knowledge(args: dict[str, Any]) -> dict[str, Any]:
     status = "passed" if not missing and not parse_errors else "failed"
     return {
         "status": status,
-        "workspace_path": str(root),
+        "operator_workspace_path": str(operator_workspace),
+        "tilelang_source_path": str(tilelang_source),
+        "workspace_mode": "dual" if is_dual_workspace else "single",
         "knowledge_path": str(kdir) if kdir.is_dir() else None,
         "knowledge_source": "builtin" if using_builtin else "workspace",
         "missing_files": [f"tilelang_knowledge/{p}" for p in missing],
@@ -1153,21 +1215,35 @@ TOOLS = {
 
 
 def tool_definitions() -> list[dict[str, Any]]:
-    base_props = {"workspace_path": {"type": "string", "description": "TileLang repository workspace root."}}
+    # Base properties for workspace tools
+    # Note: tilelang_source_path enables dual-workspace mode:
+    # - operator_workspace: where your operator code lives
+    # - tilelang_source: where TileLang source repository is (separate)
+    base_props = {
+        "workspace_path": {
+            "type": "string",
+            "description": "Operator workspace root (where your operator code lives)."
+        },
+        "tilelang_source_path": {
+            "type": "string",
+            "description": "TileLang source repository root. Falls back to TILELANG_SOURCE_PATH env var or workspace_path (backward compatibility)."
+        }
+    }
+
     return [
-        {"name": "inspect_tilelang_workspace", "description": "Validate TileLang repository and tilelang_knowledge presence.", "inputSchema": {"type": "object", "properties": base_props}},
+        {"name": "inspect_tilelang_workspace", "description": "Validate TileLang repository and tilelang_knowledge presence. Supports dual-workspace mode for independent operator development.", "inputSchema": {"type": "object", "properties": base_props}},
         {"name": "validate_knowledge_base", "description": "Validate required delivery files and parse JSON/JSONL.", "inputSchema": {"type": "object", "properties": base_props}},
         {"name": "normalize_device_profile", "description": "Normalize vendor/model/target for device-aware TileLang operator planning.", "inputSchema": {"type": "object", "properties": {"vendor": {"type": "string"}, "model": {"type": "string"}, "target": {"type": "string"}, "arch": {"type": "string"}}}},
-        {"name": "search_capabilities", "description": "Search capability_map.json.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "max_results": {"type": "integer"}}}},
-        {"name": "search_patterns", "description": "Search patterns.jsonl.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "category": {"type": "string"}, "task_family": {"type": "string"}, "capability_id": {"type": "string"}, "max_results": {"type": "integer"}}}},
-        {"name": "search_usage_patterns", "description": "Search usage_patterns.jsonl.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "pattern_id": {"type": "string"}, "symbols": {"type": "array", "items": {"type": "string"}}, "max_results": {"type": "integer"}}}},
-        {"name": "lookup_apis", "description": "Search apis.jsonl for symbols and signatures.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "symbols": {"type": "array", "items": {"type": "string"}}, "visibility": {"type": "string"}, "module": {"type": "string"}, "max_results": {"type": "integer"}}}},
-        {"name": "get_source_chunks", "description": "Retrieve source fallback chunks.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "capability_id": {"type": "string"}, "pattern_id": {"type": "string"}, "symbols": {"type": "array", "items": {"type": "string"}}, "max_results": {"type": "integer"}}}},
+        {"name": "search_capabilities", "description": "Search capability_map.json for operator capabilities.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "max_results": {"type": "integer"}}}},
+        {"name": "search_patterns", "description": "Search patterns.jsonl for operator implementation patterns.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "category": {"type": "string"}, "task_family": {"type": "string"}, "capability_id": {"type": "string"}, "max_results": {"type": "integer"}}}},
+        {"name": "search_usage_patterns", "description": "Search usage_patterns.jsonl for example workflows.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "pattern_id": {"type": "string"}, "symbols": {"type": "array", "items": {"type": "string"}}, "max_results": {"type": "integer"}}}},
+        {"name": "lookup_apis", "description": "Search apis.jsonl for TileLang API symbols and signatures.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "symbols": {"type": "array", "items": {"type": "string"}}, "visibility": {"type": "string"}, "module": {"type": "string"}, "max_results": {"type": "integer"}}}},
+        {"name": "get_source_chunks", "description": "Retrieve source fallback chunks from TileLang source.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "capability_id": {"type": "string"}, "pattern_id": {"type": "string"}, "symbols": {"type": "array", "items": {"type": "string"}}, "max_results": {"type": "integer"}}}},
         {"name": "trace_semantic_graph", "description": "Trace semantic graph nodes and edges.", "inputSchema": {"type": "object", "properties": {**base_props, "node_id": {"type": "string"}, "query": {"type": "string"}, "edge_type": {"type": "string"}, "max_results": {"type": "integer"}}}},
-        {"name": "build_operator_retrieval_plan", "description": "Build a structured retrieval plan for an operator intent.", "inputSchema": {"type": "object", "properties": {**base_props, "operator_intent": {"type": "string"}, "device_profile": {"type": "object"}}}},
+        {"name": "build_operator_retrieval_plan", "description": "Build a structured retrieval plan for an operator intent. Supports dual-workspace mode.", "inputSchema": {"type": "object", "properties": {**base_props, "operator_intent": {"type": "string"}, "device_profile": {"type": "object"}}}},
         {"name": "search_troubleshooting", "description": "Search troubleshooting knowledge base for common issues, errors, and solutions.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "error_message": {"type": "string", "description": "The actual error message to match"}, "category": {"type": "string", "description": "Issue category: compilation, runtime, performance, api, device, installation, pattern"}, "severity": {"type": "string", "description": "Issue severity: low, medium, high, critical"}, "max_results": {"type": "integer"}}}},
         {"name": "validate_operator_code", "description": "Static analysis of TileLang operator code for syntax, structure, and common issues.", "inputSchema": {"type": "object", "properties": {"code": {"type": "string", "description": "The generated TileLang operator code to validate"}, "target": {"type": "string", "description": "Target device: cuda, hip, cpu, metal, webgpu"}, "run_static_check": {"type": "boolean", "description": "Whether to run Python AST syntax check"}}}},
-        {"name": "operator_development_wizard", "description": "Step-by-step guided workflow for TileLang operator development from intent to validation.", "inputSchema": {"type": "object", "properties": {"current_step": {"type": "integer", "description": "Current step in the workflow (1-12)"}, "operator_intent": {"type": "string", "description": "Description of the operator to develop"}, "device_profile": {"type": "object", "description": "Device profile information"}, "workspace_path": {"type": "string", "description": "TileLang repository workspace root"}}}},
+        {"name": "operator_development_wizard", "description": "Step-by-step guided workflow for TileLang operator development from intent to validation. Supports dual-workspace mode.", "inputSchema": {"type": "object", "properties": {"current_step": {"type": "integer", "description": "Current step in the workflow (1-12)"}, "operator_intent": {"type": "string", "description": "Description of the operator to develop"}, "device_profile": {"type": "object", "description": "Device profile information"}, **base_props}}},
     ]
 
 

@@ -96,7 +96,9 @@ class TestWorkspaceValidation:
     def test_inspect_workspace(self):
         result = get_tool_result("inspect_tilelang_workspace")
         assert "status" in result
-        assert "workspace_path" in result
+        assert "operator_workspace_path" in result
+        assert "tilelang_source_path" in result
+        assert "workspace_mode" in result
         assert "knowledge_source" in result
 
     def test_validate_knowledge_base(self):
@@ -314,3 +316,59 @@ class TestOperatorDevelopmentWizard:
         })
         assert "operator_intent" in result
         assert result["current_step"] == 1
+
+
+# --- Dual-workspace mode tests ---
+
+
+class TestDualWorkspaceMode:
+    """Tests for the dual-workspace mode where operators are separate from TileLang source."""
+
+    def test_inspect_workspace_returns_new_fields(self):
+        """inspect_workspace should return operator_workspace_path, tilelang_source_path, and workspace_mode."""
+        result = get_tool_result("inspect_tilelang_workspace")
+        # New fields should always exist
+        assert "operator_workspace_path" in result
+        assert "tilelang_source_path" in result
+        assert "workspace_mode" in result
+        # workspace_mode should be either "single" or "dual"
+        assert result["workspace_mode"] in ("single", "dual")
+
+    def test_validate_knowledge_base_returns_new_fields(self):
+        """validate_knowledge_base should return new dual-workspace fields."""
+        result = get_tool_result("validate_knowledge_base")
+        assert "operator_workspace_path" in result
+        assert "tilelang_source_path" in result
+        assert "workspace_mode" in result
+
+    def test_tool_definitions_include_tilelang_source_param(self):
+        """Tool definitions should include tilelang_source_path parameter where applicable."""
+        # Use the existing call_tool mechanism to list tools
+        msg = {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
+        results = run_mcp(msg)
+        assert len(results) >= 2  # result 0 is initialize, result 1 is tools/list
+        tools = results[1]["result"]["tools"]
+
+        # Check that key workspace tools have the new parameter
+        tools_to_check = {
+            "inspect_tilelang_workspace": None,
+            "validate_knowledge_base": None,
+            "search_capabilities": None,
+            "search_patterns": None,
+            "search_usage_patterns": None,
+            "lookup_apis": None,
+            "get_source_chunks": None,
+            "build_operator_retrieval_plan": None,
+        }
+
+        for tool in tools:
+            if tool["name"] in tools_to_check:
+                tools_to_check[tool["name"]] = tool
+                properties = tool["inputSchema"].get("properties", {})
+                # These tools should now have tilelang_source_path
+                assert "tilelang_source_path" in properties, \
+                    f"Tool {tool['name']} missing tilelang_source_path parameter"
+
+        # Verify all expected tools were found
+        for name, tool in tools_to_check.items():
+            assert tool is not None, f"Expected tool not found: {name}"
