@@ -28,6 +28,31 @@ categories:
       - test_pattern_category_filter
       - test_api_lookup
 
+  - name: new_tools
+    description: Tests for troubleshooting, code validation, and wizard tools
+    tests:
+      - test_troubleshooting_search
+      - test_troubleshooting_by_category
+      - test_code_validation_valid
+      - test_code_validation_empty
+      - test_code_validation_syntax_error
+      - test_wizard_step_1
+      - test_wizard_with_intent
+
+  - name: dual_workspace
+    description: Tests for dual-workspace mode
+    tests:
+      - test_workspace_returns_new_fields
+      - test_knowledge_base_returns_new_fields
+      - test_tool_definitions_include_tilelang_source_path
+
+  - name: auto_detection
+    description: Tests for smart auto-detection
+    tests:
+      - test_auto_detect_returns_candidates
+      - test_multiple_candidates_reported
+      - test_hint_when_no_tilelang_found
+
   - name: end_to_end
     description: Full workflow tests
     tests:

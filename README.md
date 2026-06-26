@@ -2,7 +2,16 @@
 
 **English** | [中文](README_CN.md)
 
-MCP-backed TileLang operator development skill with workspace validation and device-aware planning.
+MCP-backed TileLang operator development skill with workspace validation, device-aware planning, and smart auto-detection.
+
+## Features
+
+- 🔍 **Smart Auto-Detection** - Automatically finds TileLang source repository (zero configuration)
+- 🔄 **Dual-Workspace Mode** - Develop operators separately from TileLang source
+- 📚 **Built-in Knowledge Base** - 13 MCP tools with pre-generated patterns, APIs, and examples
+- 🎯 **Device-Aware Planning** - Support for NVIDIA, AMD, CPU, Apple Silicon, and WebGPU
+- ✅ **Validation First** - Mandatory workspace validation before code generation
+- 🛠️ **Development Wizard** - Step-by-step guided workflow for operator development
 
 ## Prerequisites
 
@@ -57,20 +66,17 @@ Keep your custom operators separate from TileLang source using **dual-workspace 
 git clone https://github.com/Leafoon/tilelang-operator-dev.git
 git clone https://github.com/tile-ai/tilelang.git
 
-# 2. Create your operator workspace (separate from TileLang)
+# 2. Create your operator workspace (copy the template)
 cp -r tilelang-operator-dev/resources/operator_template my-operators
 cd my-operators
 
-# 3. Copy .env.example and configure paths
-cp .env.example .env
-# Edit .env: set TILELANG_SOURCE_PATH=/path/to/tilelang
-
-# 4. Edit .mcp.json — set the script path to the actual location
-#    of tilelang-operator-dev/scripts/tilelang_operator_mcp.py
-
-# 5. Open my-operators/ in Claude Code and ask:
-#    "develop a fused MoE operator for NVIDIA H100"
+# 3. Open in Claude Code — auto-detection finds TileLang automatically!
+claude .
 ```
+
+**No configuration needed!** The MCP server automatically detects TileLang source by searching:
+1. Sibling `tilelang/` directory (most common)
+2. Up to 3 parent levels
 
 **Directory structure:**
 ```
@@ -79,12 +85,12 @@ my-projects/
 ├── tilelang-operator-dev/             # This skill repo
 └── my-operators/                      # Your operators!
     ├── .mcp.json                      # MCP config
-    ├── .env                            # TILELANG_SOURCE_PATH=../tilelang
-    ├── fused_moe/                      # Your operator 1
+    ├── init_operator.py               # Operator creation utility
+    ├── fused_moe/                     # Your operator 1
     │   ├── operator.py
     │   ├── test_operator.py
     │   └── benchmark.py
-    └── flash_attention_v2/             # Your operator 2
+    └── flash_attention_v2/            # Your operator 2
         └── ...
 ```
 
@@ -105,8 +111,6 @@ Copy MCP config to your workspace and set `TILELANG_SOURCE_PATH` environment var
 > ```
 
 > **Note:** the knowledge base is built into the MCP server — no need to copy `tilelang_knowledge/` separately. The server automatically uses `resources/tilelang_knowledge/` from the skill package as a fallback.
->
-> **Dual-Workspace Mode:** Set `TILELANG_SOURCE_PATH` environment variable to point to your TileLang source checkout. Your operator workspace can be completely separate from TileLang source code.
 
 ### Other MCP-compatible Tools
 
@@ -128,6 +132,7 @@ tilelang-operator-dev/
 ├── README.md                        # English
 ├── README_CN.md                     # Chinese
 ├── CHANGELOG.md                     # Version history
+├── SETUP_GUIDE.md                   # Detailed setup guide
 ├── LICENSE                          # Apache-2.0
 ├── .gitignore
 │
@@ -138,84 +143,95 @@ tilelang-operator-dev/
 │           └── driver.py            # Smoke test / tool caller
 │
 ├── scripts/                         # Executable scripts
-│   └── tilelang_operator_mcp.py     # MCP server
+│   └── tilelang_operator_mcp.py     # MCP server (13 tools)
 │
 ├── resources/                       # Resource files
 │   ├── .mcp.json                    # MCP configuration (Linux/Mac)
 │   ├── .mcp.windows.json            # MCP configuration (Windows)
 │   ├── tilelang_knowledge/          # Pre-generated knowledge base
-│   │   ├── retrieval_plan.md
-│   │   ├── capability_map.json
-│   │   ├── patterns.jsonl
-│   │   ├── usage_patterns.jsonl
-│   │   ├── apis.jsonl
-│   │   ├── source_chunks.jsonl
-│   │   ├── semantic_graph.json
-│   │   ├── semantic_graph.mmd
-│   │   ├── manifest.json
-│   │   └── README.md
+│   │   ├── retrieval_plan.md        # Step-by-step retrieval procedure
+│   │   ├── capability_map.json      # Capability routing map
+│   │   ├── patterns.jsonl           # Reusable operator patterns
+│   │   ├── usage_patterns.jsonl     # Call sequences and workflows
+│   │   ├── apis.jsonl               # API signatures and visibility
+│   │   ├── source_chunks.jsonl      # Source code fallback chunks
+│   │   ├── semantic_graph.json      # Concept/symbol/pattern graph
+│   │   ├── semantic_graph.mmd       # Mermaid graph for humans
+│   │   ├── manifest.json            # Repository metadata
+│   │   ├── troubleshooting.jsonl    # Common issues and solutions
+│   │   └── README.md                # Knowledge base documentation
+│   ├── operator_template/           # Template for independent operators
+│   │   ├── .mcp.json                # Pre-configured MCP config
+│   │   ├── .gitignore               # Git ignore rules
+│   │   ├── README.md                # Template documentation
+│   │   ├── init_operator.py         # Workspace initialization script
+│   │   └── example_operator/        # Example operator
+│   │       ├── operator.py          # Operator implementation template
+│   │       ├── test_operator.py     # Test template
+│   │       ├── benchmark.py         # Benchmark template
+│   │       └── README.md            # Operator documentation template
 │   └── assets/
 │       └── app-icon.png
 │
 ├── examples/                        # Usage examples
-│   ├── basic-gemm.md
-│   ├── device-adaptation.md
-│   └── failure-cases.md
+│   ├── basic-gemm.md               # Basic GEMM workflow
+│   ├── device-adaptation.md        # Device-specific adaptation
+│   └── failure-cases.md            # Error handling examples
 │
 └── tests/                           # Test cases
-    ├── test_mcp_server.py           # Automated pytest suite
-    ├── test_cases.md
-    └── eval.yaml
+    ├── test_mcp_server.py           # Automated pytest suite (40+ tests)
+    ├── test_cases.md                # Manual test cases
+    └── eval.yaml                    # Evaluation configuration
 ```
-
-## What Each File Does
-
-| File | Purpose | Who Reads It |
-|------|---------|--------------|
-| `SKILL.md` | AI agent instructions (when/how to use tools) | AI agent (Claude, GPT, etc.) |
-| `metadata.json` | Skill metadata (version, author, etc.) | AI tools, package managers |
-| `.claude/skills/run-tilelang-mcp/SKILL.md` | MCP driver skill instructions | Claude Code (auto-loaded) |
-| `.claude/skills/run-tilelang-mcp/driver.py` | MCP server smoke test and tool caller | Developers, CI/CD |
-| `scripts/tilelang_operator_mcp.py` | MCP server implementation | AI tool runtime |
-| `resources/.mcp.json` | MCP server connection config | AI tools (Claude Code, Codex, etc.) |
-| `resources/tilelang_knowledge/` | Pre-generated knowledge base | MCP server |
-| `examples/` | Usage examples | Developers |
-| `tests/` | Test cases and eval config | CI/CD, developers |
 
 ## MCP Tools
 
-The MCP server provides these tools (13 total):
+The MCP server provides **13 tools** for TileLang operator development:
 
 ### Core Validation & Search
-- `inspect_tilelang_workspace`: validate TileLang repository and delivery directory presence
-- `validate_knowledge_base`: parse and count required JSON/JSONL delivery files
-- `normalize_device_profile`: normalize vendor/model/target without inventing unknown architectures
-- `search_capabilities`: search `capability_map.json`
-- `search_patterns`: search `patterns.jsonl`
-- `search_usage_patterns`: search `usage_patterns.jsonl`
-- `lookup_apis`: search `apis.jsonl`
-- `get_source_chunks`: retrieve focused fallback chunks from `source_chunks.jsonl`
-- `trace_semantic_graph`: inspect related graph nodes and edges
-- `build_operator_retrieval_plan`: assemble a structured operator retrieval plan
 
-### New Quality & Guidance Tools
-- `search_troubleshooting`: search troubleshooting knowledge base for common issues, errors, and solutions
-- `validate_operator_code`: static analysis of TileLang operator code for syntax, structure, and common issues
-- `operator_development_wizard`: step-by-step guided workflow for TileLang operator development from intent to validation
+| Tool | Description |
+|------|-------------|
+| `inspect_tilelang_workspace` | Validate TileLang repository and knowledge base presence. Supports dual-workspace mode. |
+| `validate_knowledge_base` | Parse and count required JSON/JSONL delivery files. |
+| `normalize_device_profile` | Normalize vendor/model/target without inventing unknown architectures. |
+| `search_capabilities` | Search `capability_map.json` for operator capabilities. |
+| `search_patterns` | Search `patterns.jsonl` for operator implementation patterns. |
+| `search_usage_patterns` | Search `usage_patterns.jsonl` for example workflows. |
+| `lookup_apis` | Search `apis.jsonl` for TileLang API symbols and signatures. |
+| `get_source_chunks` | Retrieve focused fallback chunks from `source_chunks.jsonl`. |
+| `trace_semantic_graph` | Inspect related graph nodes and edges. |
+| `build_operator_retrieval_plan` | Assemble a structured operator retrieval plan. |
+
+### Quality & Guidance Tools
+
+| Tool | Description |
+|------|-------------|
+| `search_troubleshooting` | Search troubleshooting knowledge base for common issues, errors, and solutions. |
+| `validate_operator_code` | Static analysis of TileLang operator code for syntax, structure, and common issues. |
+| `operator_development_wizard` | Step-by-step guided workflow for TileLang operator development (12 stages). |
 
 ## Standard Workflow
 
-1. Validate workspace with `inspect_tilelang_workspace`
-2. Validate delivery files with `validate_knowledge_base`
-3. Normalize target device with `normalize_device_profile`
-4. Search capability, pattern, usage, API, and source chunk layers
-5. Trace semantic graph only when dependencies or relationships are needed
-6. Generate the operator plan, code, explanation, and validation plan using retrieved evidence
-7. Stop instead of guessing when evidence is missing or inconsistent
+1. **Workspace Validation** - `inspect_tilelang_workspace`
+2. **Knowledge Validation** - `validate_knowledge_base`
+3. **Device Normalization** - `normalize_device_profile`
+4. **Capability Search** - `search_capabilities`
+5. **Pattern Search** - `search_patterns`
+6. **Usage Pattern Search** - `search_usage_patterns`
+7. **API Confirmation** - `lookup_apis`
+8. **Source Fallback** - `get_source_chunks`
+9. **Dependency Tracing** - `trace_semantic_graph`
+10. **Retrieval Plan** - `build_operator_retrieval_plan`
+11. **Implementation** - Generate code, explanation, or validation plan
+12. **Code Validation** - `validate_operator_code`
+13. **Troubleshooting** - `search_troubleshooting` (if errors occur)
+
+Only step 11 may generate final operator code.
 
 ## Failure Policy
 
-The skill must stop when:
+The skill must stop immediately when:
 
 - The current workspace is not a TileLang repository
 - `tilelang_knowledge/` is missing
@@ -226,13 +242,21 @@ The skill must stop when:
 ## Device Strategy
 
 Device recommendations use delivery fields:
-
 - `device_adaptation`
 - `device_strategy`
 - `device_execution_notes`
 - `device_notes`
 
-Conservative with WGMMA, TCGEN05, TMA, `cp.async`, MFMA, LDS, TMEM, `cluster_dims`, and `is_cpu=True`.
+**Conservative with architecture-specific features:**
+- WGMMA (NVIDIA only, verify support)
+- TCGEN05 (Hopper+ only)
+- TMA (Hopper+ only)
+- `cp.async` (Ampere+ only)
+- MFMA (AMD only)
+- LDS (AMD shared memory)
+- TMEM (verify support)
+- `cluster_dims` (Hopper+ only)
+- `is_cpu=True` (CPU backend only)
 
 ## Development
 
@@ -244,7 +268,7 @@ Conservative with WGMMA, TCGEN05, TMA, `cp.async`, MFMA, LDS, TMEM, `cluster_dim
 python scripts/tilelang_operator_mcp.py --check
 ```
 
-### Smoke Test (all 10 tools)
+### Smoke Test (all 13 tools)
 
 ```bash
 python .claude/skills/run-tilelang-mcp/driver.py --smoke
@@ -275,6 +299,18 @@ python -m pytest tests/test_mcp_server.py -v
 ```
 
 See `tests/test_cases.md` for additional manual test cases.
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [README.md](README.md) | This file - English documentation |
+| [README_CN.md](README_CN.md) | Chinese documentation |
+| [SETUP_GUIDE.md](SETUP_GUIDE.md) | Detailed setup guide for dual-workspace mode |
+| [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
+| [SKILL.md](SKILL.md) | Core skill instructions for AI agents |
+| [examples/](examples/) | Usage examples and workflows |
+| [tests/](tests/) | Test cases and evaluation configuration |
 
 ## License
 

@@ -2,7 +2,16 @@
 
 [English](README.md) | **中文**
 
-MCP 驱动的 TileLang 算子开发技能，支持工作区验证和设备感知规划。
+MCP 驱动的 TileLang 算子开发技能，支持工作区验证、设备感知规划和智能自动检测。
+
+## 特性
+
+- 🔍 **智能自动检测** - 自动查找 TileLang 源码仓库（零配置）
+- 🔄 **双工作区模式** - 独立于 TileLang 源码开发算子
+- 📚 **内置知识库** - 13 个 MCP 工具，包含预生成的模式、API 和示例
+- 🎯 **设备感知规划** - 支持 NVIDIA、AMD、CPU、Apple Silicon 和 WebGPU
+- ✅ **验证优先** - 生成代码前强制进行工作区验证
+- 🛠️ **开发向导** - 分步引导式算子开发工作流
 
 ## 前置条件
 
@@ -48,6 +57,43 @@ cp tilelang-operator-dev/resources/.mcp.json tilelang/
 # 6. 在 Claude Code 中打开 tilelang/ 目录，然后说："帮我写一个 H100 的 GEMM 算子"
 ```
 
+### 独立算子开发（推荐）
+
+使用**双工作区模式**将自定义算子与 TileLang 源码分离：
+
+```bash
+# 1. 克隆技能包和 TileLang
+git clone https://github.com/Leafoon/tilelang-operator-dev.git
+git clone https://github.com/tile-ai/tilelang.git
+
+# 2. 创建算子工作区（复制模板）
+cp -r tilelang-operator-dev/resources/operator_template my-operators
+cd my-operators
+
+# 3. 在 Claude Code 中打开 — 自动检测会自动找到 TileLang！
+claude .
+```
+
+**无需配置！** MCP 服务器会自动检测 TileLang 源码，搜索顺序：
+1. 兄弟目录 `tilelang/`（最常见）
+2. 向上最多 3 级父目录
+
+**目录结构：**
+```
+my-projects/
+├── tilelang/                          # TileLang 源码（不变）
+├── tilelang-operator-dev/             # 本技能仓库
+└── my-operators/                      # 你的算子！
+    ├── .mcp.json                      # MCP 配置
+    ├── init_operator.py               # 算子创建工具
+    ├── fused_moe/                     # 算子 1
+    │   ├── operator.py
+    │   ├── test_operator.py
+    │   └── benchmark.py
+    └── flash_attention_v2/            # 算子 2
+        └── ...
+```
+
 ### 全局安装（任意目录使用）
 
 将技能复制到全局 Claude Code 技能目录：
@@ -57,13 +103,7 @@ git clone https://github.com/Leafoon/tilelang-operator-dev.git
 cp -r tilelang-operator-dev/.claude/skills/run-tilelang-mcp ~/.claude/skills/
 ```
 
-将 MCP 配置复制到你的 TileLang 工作区：
-
-```bash
-cp tilelang-operator-dev/resources/.mcp.json your-workspace/
-```
-
-编辑 `.mcp.json`，将路径改为 `scripts/tilelang_operator_mcp.py` 的实际位置。
+将 MCP 配置复制到你的工作区并设置 `TILELANG_SOURCE_PATH` 环境变量。
 
 > **Windows 用户：** 使用 `.mcp.windows.json` 代替 — 它用 `python` 而非 `python3`：
 > ```bash
@@ -92,6 +132,7 @@ tilelang-operator-dev/
 ├── README.md                        # 英文说明
 ├── README_CN.md                     # 中文说明
 ├── CHANGELOG.md                     # 版本历史
+├── SETUP_GUIDE.md                   # 详细设置指南
 ├── LICENSE                          # Apache-2.0
 ├── .gitignore
 │
@@ -102,78 +143,95 @@ tilelang-operator-dev/
 │           └── driver.py            # 冒烟测试 / 工具调用器
 │
 ├── scripts/                         # 可执行脚本
-│   └── tilelang_operator_mcp.py     # MCP 服务器
+│   └── tilelang_operator_mcp.py     # MCP 服务器（13 个工具）
 │
 ├── resources/                       # 资源文件
 │   ├── .mcp.json                    # MCP 配置（Linux/Mac）
 │   ├── .mcp.windows.json            # MCP 配置（Windows）
 │   ├── tilelang_knowledge/          # 预生成的知识库
-│   │   ├── retrieval_plan.md
-│   │   ├── capability_map.json
-│   │   ├── patterns.jsonl
-│   │   ├── usage_patterns.jsonl
-│   │   ├── apis.jsonl
-│   │   ├── source_chunks.jsonl
-│   │   ├── semantic_graph.json
-│   │   ├── semantic_graph.mmd
-│   │   ├── manifest.json
-│   │   └── README.md
+│   │   ├── retrieval_plan.md        # 分步检索流程
+│   │   ├── capability_map.json      # 能力路由图
+│   │   ├── patterns.jsonl           # 可重用的算子模式
+│   │   ├── usage_patterns.jsonl     # 调用序列和工作流
+│   │   ├── apis.jsonl               # API 签名和可见性
+│   │   ├── source_chunks.jsonl      # 源码回退片段
+│   │   ├── semantic_graph.json      # 概念/符号/模式关系图
+│   │   ├── semantic_graph.mmd       # 人类可读的 Mermaid 图
+│   │   ├── manifest.json            # 仓库元数据
+│   │   ├── troubleshooting.jsonl    # 常见问题和解决方案
+│   │   └── README.md                # 知识库文档
+│   ├── operator_template/           # 独立算子开发模板
+│   │   ├── .mcp.json                # 预配置的 MCP 配置
+│   │   ├── .gitignore               # Git 忽略规则
+│   │   ├── README.md                # 模板文档
+│   │   ├── init_operator.py         # 工作区初始化脚本
+│   │   └── example_operator/        # 示例算子
+│   │       ├── operator.py          # 算子实现模板
+│   │       ├── test_operator.py     # 测试模板
+│   │       ├── benchmark.py         # 基准测试模板
+│   │       └── README.md            # 算子文档模板
 │   └── assets/
 │       └── app-icon.png
 │
 ├── examples/                        # 使用示例
-│   ├── basic-gemm.md
-│   ├── device-adaptation.md
-│   └── failure-cases.md
+│   ├── basic-gemm.md               # 基本 GEMM 工作流
+│   ├── device-adaptation.md        # 设备适配示例
+│   └── failure-cases.md            # 错误处理示例
 │
 └── tests/                           # 测试用例
-    ├── test_mcp_server.py           # 自动化 pytest 测试套件
-    ├── test_cases.md
-    └── eval.yaml
+    ├── test_mcp_server.py           # 自动化 pytest 测试套件（40+ 测试）
+    ├── test_cases.md                # 手动测试用例
+    └── eval.yaml                    # 评估配置
 ```
-
-## 文件说明
-
-| 文件 | 用途 | 谁读它 |
-|------|------|--------|
-| `SKILL.md` | AI 代理指令（何时/如何使用工具） | AI 代理（Claude、GPT 等） |
-| `metadata.json` | 技能元数据（版本、作者等） | AI 工具、包管理器 |
-| `.claude/skills/run-tilelang-mcp/SKILL.md` | MCP 驱动技能指令 | Claude Code（自动加载） |
-| `.claude/skills/run-tilelang-mcp/driver.py` | MCP 服务器冒烟测试和工具调用器 | 开发者、CI/CD |
-| `scripts/tilelang_operator_mcp.py` | MCP 服务器实现 | AI 工具运行时 |
-| `resources/.mcp.json` | MCP 服务器连接配置 | AI 工具（Claude Code、Codex 等） |
-| `resources/tilelang_knowledge/` | 预生成的知识库 | MCP 服务器 |
-| `examples/` | 使用示例 | 开发者 |
-| `tests/` | 测试用例和评估配置 | CI/CD、开发者 |
 
 ## MCP 工具
 
-MCP 服务器提供以下工具：
+MCP 服务器提供 **13 个工具**用于 TileLang 算子开发：
 
-- `inspect_tilelang_workspace`：验证 TileLang 仓库和交付目录
-- `validate_knowledge_base`：解析并统计 JSON/JSONL 交付文件
-- `normalize_device_profile`：规范化 vendor/model/target，不编造未知架构
-- `search_capabilities`：搜索 `capability_map.json`
-- `search_patterns`：搜索 `patterns.jsonl`
-- `search_usage_patterns`：搜索 `usage_patterns.jsonl`
-- `lookup_apis`：搜索 `apis.jsonl`
-- `get_source_chunks`：检索 `source_chunks.jsonl` 中的回退代码块
-- `trace_semantic_graph`：检查相关图节点和边
-- `build_operator_retrieval_plan`：构建结构化算子检索计划
+### 核心验证与搜索
+
+| 工具 | 描述 |
+|------|------|
+| `inspect_tilelang_workspace` | 验证 TileLang 仓库和知识库存在性。支持双工作区模式。 |
+| `validate_knowledge_base` | 解析和验证 JSON/JSONL 交付文件。 |
+| `normalize_device_profile` | 标准化供应商/型号/目标，不编造未知架构。 |
+| `search_capabilities` | 搜索 `capability_map.json` 查找算子能力。 |
+| `search_patterns` | 搜索 `patterns.jsonl` 查找算子实现模式。 |
+| `search_usage_patterns` | 搜索 `usage_patterns.jsonl` 查找工作流示例。 |
+| `lookup_apis` | 搜索 `apis.jsonl` 查找 TileLang API 符号和签名。 |
+| `get_source_chunks` | 从 `source_chunks.jsonl` 获取聚焦的回退代码块。 |
+| `trace_semantic_graph` | 检查相关的图节点和边。 |
+| `build_operator_retrieval_plan` | 构建结构化的算子检索计划。 |
+
+### 质量与指导工具
+
+| 工具 | 描述 |
+|------|------|
+| `search_troubleshooting` | 搜索故障排除知识库，查找常见问题、错误和解决方案。 |
+| `validate_operator_code` | 对 TileLang 算子代码进行静态分析，检查语法、结构和常见问题。 |
+| `operator_development_wizard` | 分步引导式 TileLang 算子开发工作流（12 个阶段）。 |
 
 ## 标准工作流
 
-1. 使用 `inspect_tilelang_workspace` 验证工作区
-2. 使用 `validate_knowledge_base` 验证交付文件
-3. 使用 `normalize_device_profile` 规范目标设备
-4. 搜索能力、模式、用法、API 和源代码块层
-5. 仅在需要依赖或关系时追踪语义图
-6. 使用检索到的证据生成算子计划、代码、解释和验证计划
-7. 当证据缺失或不一致时停止，而不是猜测
+1. **工作区验证** - `inspect_tilelang_workspace`
+2. **知识库验证** - `validate_knowledge_base`
+3. **设备标准化** - `normalize_device_profile`
+4. **能力搜索** - `search_capabilities`
+5. **模式搜索** - `search_patterns`
+6. **使用模式搜索** - `search_usage_patterns`
+7. **API 确认** - `lookup_apis`
+8. **源码回退** - `get_source_chunks`
+9. **依赖追踪** - `trace_semantic_graph`
+10. **检索计划** - `build_operator_retrieval_plan`
+11. **实现** - 生成代码、解释或验证计划
+12. **代码验证** - `validate_operator_code`
+13. **故障排除** - `search_troubleshooting`（如果出现错误）
+
+只有第 11 步可以生成最终的算子代码。
 
 ## 失败策略
 
-以下情况必须停止：
+以下情况必须立即停止：
 
 - 当前工作区不是 TileLang 仓库
 - `tilelang_knowledge/` 缺失
@@ -184,13 +242,21 @@ MCP 服务器提供以下工具：
 ## 设备策略
 
 设备推荐使用交付字段：
-
 - `device_adaptation`
 - `device_strategy`
 - `device_execution_notes`
 - `device_notes`
 
-对 WGMMA、TCGEN05、TMA、`cp.async`、MFMA、LDS、TMEM、`cluster_dims` 和 `is_cpu=True` 保持保守。
+**对架构特定功能保持保守：**
+- WGMMA（仅 NVIDIA，需验证支持）
+- TCGEN05（仅 Hopper+）
+- TMA（仅 Hopper+）
+- `cp.async`（仅 Ampere+）
+- MFMA（仅 AMD）
+- LDS（AMD 共享内存）
+- TMEM（需验证支持）
+- `cluster_dims`（仅 Hopper+）
+- `is_cpu=True`（仅 CPU 后端）
 
 ## 开发
 
@@ -202,7 +268,7 @@ MCP 服务器提供以下工具：
 python scripts/tilelang_operator_mcp.py --check
 ```
 
-### 冒烟测试（全部 10 个工具）
+### 冒烟测试（全部 13 个工具）
 
 ```bash
 python .claude/skills/run-tilelang-mcp/driver.py --smoke
@@ -233,6 +299,18 @@ python -m pytest tests/test_mcp_server.py -v
 ```
 
 更多手动测试用例见 `tests/test_cases.md`。
+
+## 文档
+
+| 文档 | 描述 |
+|------|------|
+| [README.md](README.md) | 本文件 - 英文文档 |
+| [README_CN.md](README_CN.md) | 中文文档 |
+| [SETUP_GUIDE.md](SETUP_GUIDE.md) | 双工作区模式的详细设置指南 |
+| [CHANGELOG.md](CHANGELOG.md) | 版本历史和发布说明 |
+| [SKILL.md](SKILL.md) | AI 代理的核心技能指令 |
+| [examples/](examples/) | 使用示例和工作流 |
+| [tests/](tests/) | 测试用例和评估配置 |
 
 ## 许可证
 

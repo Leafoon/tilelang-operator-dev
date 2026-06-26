@@ -1,11 +1,11 @@
 ---
 name: run-tilelang-mcp
-description: Run, test, and verify the TileLang MCP server. Smoke-test all 10 tools, call individual tools, list available tools. Use when testing or debugging the tilelang-operator-dev skill's MCP server.
+description: Run, test, and verify the TileLang MCP server. Smoke-test all 13 tools, call individual tools, list available tools. Use when testing or debugging the tilelang-operator-dev skill's MCP server.
 ---
 
 # Run TileLang MCP Server
 
-The TileLang MCP server (`scripts/tilelang_operator_mcp.py`) is a stdio-based JSON-RPC server that provides 10 tools for TileLang operator development: workspace validation, knowledge base validation, device normalization, capability/pattern/usage search, API lookup, source chunk retrieval, semantic graph tracing, and retrieval plan building.
+The TileLang MCP server (`scripts/tilelang_operator_mcp.py`) is a stdio-based JSON-RPC server that provides 13 tools for TileLang operator development: workspace validation, knowledge base validation, device normalization, capability/pattern/usage search, API lookup, source chunk retrieval, semantic graph tracing, retrieval plan building, troubleshooting search, code validation, and development wizard.
 
 **Driver:** `.claude/skills/run-tilelang-mcp/driver.py`
 
@@ -16,7 +16,7 @@ The TileLang MCP server (`scripts/tilelang_operator_mcp.py`) is a stdio-based JS
 
 ## Smoke Test
 
-Exercises all 10 tools in one pass. The server automatically uses the built-in knowledge base from `resources/tilelang_knowledge/` when the workspace doesn't have its own copy.
+Exercises all 13 tools in one pass. The server automatically uses the built-in knowledge base from `resources/tilelang_knowledge/` when the workspace doesn't have its own copy.
 
 ```bash
 cd <repo-root>
@@ -56,6 +56,6 @@ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion
 ## Gotchas
 
 - **`python3` on Windows** — the `python3` alias is the Windows Store stub that exits with code 49. Always use `python` on Windows.
-- **Built-in knowledge base** — the server falls back to `resources/tilelang_knowledge/` when the workspace doesn't have its own copy. All 10 tools work from the skill repo without copying anything.
+- **Built-in knowledge base** — the server falls back to `resources/tilelang_knowledge/` when the workspace doesn't have its own copy. All 13 tools work from the skill repo without copying anything.
 - **`normalize_device_profile` needs vendor** — passing just `{"model":"H100"}` without `vendor` gives low confidence (0.4). Include `vendor`, `model`, and optionally `target` for best results.
 - **Server is single-shot** — each invocation processes one batch of JSON-RPC messages from stdin then exits. It's not a long-running server.

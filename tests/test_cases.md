@@ -56,9 +56,39 @@
 - **Input**: `query="T.gemm"`
 - **Expected**: Results include `T.gemm` with correct signature
 
+## New Tools Tests
+
+### Test 13: Troubleshooting Search
+- **Input**: `query="dtype mismatch"`
+- **Expected**: `search_troubleshooting` returns results with compilation issues
+
+### Test 14: Troubleshooting Search by Category
+- **Input**: `query="", category="compilation"`
+- **Expected**: Results filtered to compilation category
+
+### Test 15: Code Validation - Valid Code
+- **Input**: `code="import tilelang\nimport tilelang.language as T\n\n@tilelang.jit\ndef gemm(A, B):\n    return None"`
+- **Expected**: `validate_operator_code` returns `valid=True`
+
+### Test 16: Code Validation - Empty Code
+- **Input**: `code=""`
+- **Expected**: `validate_operator_code` returns `valid=False`
+
+### Test 17: Code Validation - Syntax Error
+- **Input**: `code="import tilelang\ndef broken(\n    syntax error here"`
+- **Expected**: `validate_operator_code` returns `status=failed` with syntax error
+
+### Test 18: Development Wizard - Step 1
+- **Input**: `current_step=1`
+- **Expected**: `operator_development_wizard` returns `status="in_progress"`, `current_step=1`
+
+### Test 19: Development Wizard with Intent
+- **Input**: `current_step=1, operator_intent="GEMM kernel for H100"`
+- **Expected**: Response includes `operator_intent` field
+
 ## End-to-End Tests
 
-### Test 13: Basic GEMM Workflow
+### Test 20: Basic GEMM Workflow
 1. Validate workspace
 2. Validate knowledge base
 3. Normalize device (H100)
@@ -69,8 +99,36 @@
 
 **Expected**: All steps succeed, final plan has `status=passed`
 
-### Test 14: Failure Recovery
+### Test 21: Failure Recovery
 1. Validate workspace (fails - not TileLang repo)
 2. Stop and report error
 
 **Expected**: Skill stops immediately, does not attempt code generation
+
+## Dual-Workspace Mode Tests
+
+### Test 22: Workspace Returns New Fields
+- **Input**: `inspect_tilelang_workspace`
+- **Expected**: Response includes `operator_workspace_path`, `tilelang_source_path`, and `workspace_mode`
+
+### Test 23: Knowledge Base Returns New Fields
+- **Input**: `validate_knowledge_base`
+- **Expected**: Response includes `operator_workspace_path`, `tilelang_source_path`, and `workspace_mode`
+
+### Test 24: Tool Definitions Include tilelang_source_path
+- **Input**: `tools/list`
+- **Expected**: Key workspace tools have `tilelang_source_path` parameter
+
+## Auto-Detection Tests
+
+### Test 25: Auto-Detect Returns Candidates
+- **Input**: `inspect_tilelang_workspace`
+- **Expected**: If auto-detected, response includes `auto_detected` field
+
+### Test 26: Multiple Candidates Reported
+- **Input**: `inspect_tilelang_workspace` (when multiple TileLang sources exist)
+- **Expected**: `multiple_candidates` is a list with more than 1 item
+
+### Test 27: Hint When No TileLang Found
+- **Input**: `inspect_tilelang_workspace` with non-existent path
+- **Expected**: Response includes `hint` field with helpful message
