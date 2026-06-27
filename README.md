@@ -213,53 +213,181 @@ MCP 驱动的 TileLang 算子开发技能，支持工作区验证、设备感知
 
 ### 前置条件
 
-此技能需要一个 **TileLang 工作区**。你需要以下之一：
+此技能需要一个 **TileLang 工作区** — AI 代理会在生成代码前验证工作区。你需要以下之一：
+
+**方案 A：克隆官方 TileLang 仓库**（推荐用于学习/贡献）
 
 ```bash
-# 方案 A：克隆官方 TileLang 仓库
 git clone https://github.com/tile-ai/tilelang.git
-
-# 方案 B：pip 安装
-pip install tilelang
+cd tilelang
 ```
+
+**方案 B：你自己的 TileLang 项目**（用于构建自定义算子）
+
+```bash
+pip install tilelang
+mkdir my-project && cd my-project
+```
+
+没有有效的 TileLang 工作区，技能会停止并拒绝生成代码。
 
 ### 安装
 
+#### 一键安装（推荐）
+
 ```bash
-# 1. 克隆两个仓库
+# 1. 克隆两个仓库到任意目录
 mkdir my-tilelang-projects && cd my-tilelang-projects
 git clone https://github.com/Leafoon/tilelang-operator-dev.git
 git clone https://github.com/tile-ai/tilelang.git
 
-# 2. 运行安装脚本
+# 2. 运行安装脚本 — 将 Skill 和 MCP 配置安装到全局
 cd tilelang-operator-dev && bash setup.sh && cd ..
 
 # 3. 创建算子工作区（只放算子文件）
 mkdir my-operators
 
-# 4. 启动 Claude Code
-claude .
+# 4. 在任意目录启动 Claude Code：
+claude .                        # ← 父目录
+claude tilelang-operator-dev    # ← 技能仓库
+claude my-operators             # ← 你的算子工作区
 ```
+
+`setup.sh` 脚本将 Skill 安装到 `~/.claude/skills/`，MCP 配置安装到 `~/.claude/`，因此从任意目录均可使用。
+
+#### 手动安装
+
+```bash
+git clone https://github.com/Leafoon/tilelang-operator-dev.git
+git clone https://github.com/tile-ai/tilelang.git
+
+# 全局安装 skill
+cp -r tilelang-operator-dev/.claude/skills/run-tilelang-mcp ~/.claude/skills/
+
+# 全局安装 MCP 配置（需编辑路径）
+cp tilelang-operator-dev/resources/.mcp.json ~/.claude/.mcp.json
+```
+
+> **Windows 用户：** 使用 `.mcp.windows.json` 代替 — 它用 `python` 而非 `python3`。
+
+> **注意：** 知识库已内置在 MCP 服务器中 — 不需要单独复制 `tilelang_knowledge/`。服务器会自动使用技能包中的 `resources/tilelang_knowledge/` 作为回退。
+
+#### 其他 MCP 兼容工具
+
+| 工具 | 技能位置 | MCP 配置 |
+|------|----------|----------|
+| Claude Code | `.claude/skills/` 或 `~/.claude/skills/` | 项目根目录的 `.mcp.json` |
+| OpenAI Codex | `.codex-plugin/` | 项目根目录的 `.mcp.json` |
+| Cursor | `.cursorrules` 或项目根目录 | 项目根目录的 `.mcp.json` |
+| OpenCode | 项目配置 | 项目根目录的 `.mcp.json` |
 
 ### 使用示例
 
-**GEMM 算子：**
+安装完成后，在任意目录打开 Claude Code，可以这样提问：
+
+#### GEMM 算子
+
 - `写一个 NVIDIA H100 的基础 GEMM 算子，fp16 输入`
+- `开发一个 split-K GEMM 算子，用于大 K 维度`
 - `为 A100 创建 2:4 稀疏 GEMM 算子`
+- `写一个 Hopper 的 int4 反量化 GEMM 算子`
 - `构建一个 MoE 风格的分组 GEMM 算子`
 
-**Attention 算子：**
+#### Attention 算子
+
 - `实现一个 H100 的 flash attention 前向算子`
 - `写一个带分页 KV 缓存的 GQA decode attention 算子`
+- `为 DeepSeek 模型创建 MLA decode 算子`
 
-**设备适配：**
+#### 设备适配
+
 - `写一个能在 Apple M4 上运行的 GEMM 算子，使用 Metal 后端`
 - `为 AMD MI300X 创建 elementwise add 算子`
+- `为 NVIDIA B100 Blackwell 架构开发 GEMM 算子`
 
-**其他：**
+#### 归约与其他
+
 - `实现一个 online softmax 算子`
 - `写一个 RMSNorm 算子`
+- `创建一个 Top-K 选择算子`
+- `用 im2col 构建 2D 卷积算子`
+
+#### 代码验证与故障排查
+
+- `验证这段 TileLang 算子代码`（粘贴代码）
+- `我的 WGMMA 在 A100 上编译报错，帮我修复`
+- `为什么我的 AMD 算子输出结果不正确？`
+
+#### 引导式开发
+
 - `一步步指导我开发一个 GEMM 算子`
+- `帮我把 H100 的算子适配到 A100`
+
+### MCP 工具
+
+MCP 服务器提供 **13 个工具**用于 TileLang 算子开发：
+
+| 工具 | 描述 |
+|------|------|
+| `inspect_tilelang_workspace` | 验证 TileLang 仓库和知识库 |
+| `validate_knowledge_base` | 解析和验证 JSON/JSONL 交付文件 |
+| `normalize_device_profile` | 标准化供应商/型号/目标 |
+| `search_capabilities` | 搜索 capability_map.json 查找算子能力 |
+| `search_patterns` | 搜索 patterns.jsonl 查找实现模式 |
+| `search_usage_patterns` | 搜索 usage_patterns.jsonl 查找工作流示例 |
+| `lookup_apis` | 搜索 apis.jsonl 查找 API 符号和签名 |
+| `get_source_chunks` | 获取源码回退片段 |
+| `trace_semantic_graph` | 追踪语义图节点和边 |
+| `build_operator_retrieval_plan` | 构建结构化检索计划 |
+| `search_troubleshooting` | 搜索故障排查知识库 |
+| `validate_operator_code` | 对生成代码进行静态分析 |
+| `operator_development_wizard` | 12 步引导式开发工作流 |
+
+### 标准工作流
+
+1. **工作区验证** - `inspect_tilelang_workspace`
+2. **知识库验证** - `validate_knowledge_base`
+3. **设备标准化** - `normalize_device_profile`
+4. **能力搜索** - `search_capabilities`
+5. **模式搜索** - `search_patterns`
+6. **使用模式搜索** - `search_usage_patterns`
+7. **API 确认** - `lookup_apis`
+8. **源码回退** - `get_source_chunks`
+9. **依赖追踪** - `trace_semantic_graph`
+10. **检索计划** - `build_operator_retrieval_plan`
+11. **实现** - 生成代码（唯一生成代码的步骤）
+12. **代码验证** - `validate_operator_code`
+13. **故障排查** - `search_troubleshooting`（如果出现错误）
+
+### 开发
+
+#### 运行 MCP 服务器
+
+```bash
+python scripts/tilelang_operator_mcp.py --check
+```
+
+#### 冒烟测试（全部 13 个工具）
+
+```bash
+python .claude/skills/run-tilelang-mcp/driver.py --smoke
+```
+
+#### 运行测试
+
+```bash
+python -m pytest tests/test_mcp_server.py -v
+```
+
+### 文档
+
+| 文档 | 描述 |
+|------|------|
+| [SETUP_GUIDE.md](SETUP_GUIDE.md) | 详细设置指南 |
+| [CHANGELOG.md](CHANGELOG.md) | 版本历史 |
+| [SKILL.md](SKILL.md) | AI 代理的核心技能指令 |
+| [examples/](examples/) | 使用示例 |
+| [tests/](tests/) | 测试用例 |
 
 ### 许可证
 
