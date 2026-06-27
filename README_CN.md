@@ -37,63 +37,65 @@ mkdir my-project && cd my-project
 
 ## 安装
 
-### 快速开始（Claude Code）
+### 一键安装（推荐）
 
 ```bash
-# 1. 克隆技能包
-git clone https://github.com/Leafoon/tilelang-operator-dev.git
-
-# 2. 克隆 TileLang（技能验证的工作区）
-git clone https://github.com/tile-ai/tilelang.git
-
-# 3. 将技能放入 TileLang 的 .claude/skills/
-cp -r tilelang-operator-dev/.claude/skills/run-tilelang-mcp tilelang/.claude/skills/
-
-# 4. 将 MCP 配置复制到 TileLang 工作区
-cp tilelang-operator-dev/resources/.mcp.json tilelang/
-
-# 5. 编辑 tilelang/.mcp.json — 设置脚本路径为实际位置
-
-# 6. 在 Claude Code 中打开 tilelang/ 目录，然后说："帮我写一个 H100 的 GEMM 算子"
-```
-
-### 独立算子开发（推荐）
-
-使用**双工作区模式**将自定义算子与 TileLang 源码分离：
-
-```bash
-# 1. 克隆技能包和 TileLang
+# 1. 克隆两个仓库到任意目录
+mkdir my-tilelang-projects && cd my-tilelang-projects
 git clone https://github.com/Leafoon/tilelang-operator-dev.git
 git clone https://github.com/tile-ai/tilelang.git
 
-# 2. 创建算子工作区（复制模板）
+# 2. 运行安装脚本 — 将 Skill 安装到当前目录
+cd tilelang-operator-dev && bash setup.sh && cd ..
+
+# 3. 创建算子工作区
 cp -r tilelang-operator-dev/resources/operator_template my-operators
-cd my-operators
 
-# 3. 在 Claude Code 中打开 — 自动检测会自动找到 TileLang！
-claude .
+# 4. 现在可以在任意目录启动 Claude Code：
+claude .                        # ← 父目录 (my-tilelang-projects/)
+claude tilelang-operator-dev    # ← 技能仓库
+claude my-operators             # ← 你的算子工作区
 ```
 
-**无需配置！** MCP 服务器会自动检测 TileLang 源码，搜索顺序：
-1. 兄弟目录 `tilelang/`（最常见）
-2. 向上最多 3 级父目录
+`setup.sh` 脚本会将 Skill 和 MCP 配置复制到父目录，这样从任何位置都能被 Claude Code 发现。
 
-**目录结构：**
+### 手动安装
+
+```bash
+# 克隆
+git clone https://github.com/Leafoon/tilelang-operator-dev.git
+git clone https://github.com/tile-ai/tilelang.git
+
+# 方式 A: 在父目录使用
+mkdir -p .claude/skills/run-tilelang-mcp
+cp tilelang-operator-dev/.claude/skills/run-tilelang-mcp/SKILL.md .claude/skills/run-tilelang-mcp/
+sed "s|\${workspaceFolder}/scripts|\${workspaceFolder}/tilelang-operator-dev/scripts|g" \
+    tilelang-operator-dev/resources/.mcp.json > .mcp.json
+
+# 方式 B: 在算子工作区使用（零配置）
+cp -r tilelang-operator-dev/resources/operator_template my-operators
+cd my-operators && claude .
 ```
-my-projects/
-├── tilelang/                          # TileLang 源码（不变）
-├── tilelang-operator-dev/             # 本技能仓库
-└── my-operators/                      # 你的算子！
-    ├── .mcp.json                      # MCP 配置
+
+### 安装后的目录结构
+
+```
+my-tilelang-projects/               # ← 父目录（可以在这里 claude .）
+├── .mcp.json                        # MCP 配置（setup.sh 生成）
+├── .claude/skills/run-tilelang-mcp/
+│   └── SKILL.md                     # Skill（setup.sh 生成）
+├── tilelang/                        # TileLang 源码
+├── tilelang-operator-dev/           # 技能仓库
+│   ├── .mcp.json                    # MCP 配置（独立工作区）
+│   ├── .claude/skills/run-tilelang-mcp/
+│   │   └── SKILL.md                 # Skill（也可以直接在这里用）
+│   ├── scripts/tilelang_operator_mcp.py
+│   └── resources/tilelang_knowledge/
+└── my-operators/                    # 你的算子！
+    ├── .mcp.json                    # MCP 配置（模板自带）
     ├── .claude/skills/run-tilelang-mcp/
-    │   └── SKILL.md                   # 技能指令（自动复制）
-    ├── init_operator.py               # 算子创建工具
-    ├── fused_moe/                     # 算子 1
-    │   ├── operator.py
-    │   ├── test_operator.py
-    │   └── benchmark.py
-    └── flash_attention_v2/            # 算子 2
-        └── ...
+    │   └── SKILL.md                 # Skill（模板自带）
+    └── ...
 ```
 
 ### 全局安装（任意目录使用）
@@ -185,6 +187,48 @@ tilelang-operator-dev/
     ├── test_cases.md                # 手动测试用例
     └── eval.yaml                    # 评估配置
 ```
+
+## 使用示例
+
+安装完成后，在任意目录打开 Claude Code，可以这样提问：
+
+### GEMM 算子
+
+- `写一个 NVIDIA H100 的基础 GEMM 算子，fp16 输入`
+- `开发一个 split-K GEMM 算子，用于大 K 维度`
+- `为 A100 创建 2:4 稀疏 GEMM 算子`
+- `写一个 Hopper 的 int4 反量化 GEMM 算子`
+- `构建一个 MoE 风格的分组 GEMM 算子`
+
+### Attention 算子
+
+- `实现一个 H100 的 flash attention 前向算子`
+- `写一个带分页 KV 缓存的 GQA decode attention 算子`
+- `为 DeepSeek 模型创建 MLA decode 算子`
+
+### 设备适配
+
+- `写一个能在 Apple M4 上运行的 GEMM 算子，使用 Metal 后端`
+- `为 AMD MI300X 创建 elementwise add 算子`
+- `为 NVIDIA B100 Blackwell 架构开发 GEMM 算子`
+
+### 归约与其他
+
+- `实现一个 online softmax 算子`
+- `写一个 RMSNorm 算子`
+- `创建一个 Top-K 选择算子`
+- `用 im2col 构建 2D 卷积算子`
+
+### 代码验证与故障排查
+
+- `验证这段 TileLang 算子代码`（粘贴代码）
+- `我的 WGMMA 在 A100 上编译报错，帮我修复`
+- `为什么我的 AMD 算子输出结果不正确？`
+
+### 引导式开发
+
+- `一步步指导我开发一个 GEMM 算子`
+- `帮我把 H100 的算子适配到 A100`
 
 ## MCP 工具
 

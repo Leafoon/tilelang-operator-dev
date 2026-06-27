@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - **Skill discovery in operator template**: Added `.claude/skills/run-tilelang-mcp/SKILL.md` to `resources/operator_template/` so Claude Code discovers the skill when opening an operator workspace created from the template. Previously, only MCP tools were available but the skill instructions were missing.
+- **Knowledge base fallback**: `knowledge_dir()` now correctly falls back to built-in knowledge when local `tilelang_knowledge/` directory exists but is missing required files (e.g., template placeholder with only README.md).
+
+### Added
+- **`setup.sh`**: One-command setup script that installs Skill and MCP config to the parent directory, enabling Claude Code to discover the skill from any workspace.
+- **Root `.mcp.json`**: Added MCP config to repo root so `tilelang-operator-dev/` works as a standalone workspace.
+- **Usage Examples**: Added concrete question examples to README for GEMM, attention, device-specific, and troubleshooting scenarios.
 
 ## [0.4.1] - 2026-06-26
 

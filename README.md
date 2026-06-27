@@ -37,63 +37,68 @@ Without a valid TileLang workspace, the skill will stop and refuse to generate c
 
 ## Installation
 
-### Quick Start (Claude Code)
+### One-Command Setup (Recommended)
 
 ```bash
-# 1. Clone the skill
-git clone https://github.com/Leafoon/tilelang-operator-dev.git
-
-# 2. Clone TileLang (the workspace the skill validates against)
-git clone https://github.com/tile-ai/tilelang.git
-
-# 3. Put the skill into TileLang's .claude/skills/
-cp -r tilelang-operator-dev/.claude/skills/run-tilelang-mcp tilelang/.claude/skills/
-
-# 4. Copy MCP config into the TileLang workspace
-cp tilelang-operator-dev/resources/.mcp.json tilelang/
-
-# 5. Edit tilelang/.mcp.json — set the script path to the actual location
-
-# 6. Open tilelang/ in Claude Code and ask: "write a GEMM kernel for H100"
-```
-
-### Independent Operator Development (Recommended)
-
-Keep your custom operators separate from TileLang source using **dual-workspace mode**:
-
-```bash
-# 1. Clone the skill and TileLang
+# 1. Clone both repos into any directory
+mkdir my-tilelang-projects && cd my-tilelang-projects
 git clone https://github.com/Leafoon/tilelang-operator-dev.git
 git clone https://github.com/tile-ai/tilelang.git
 
-# 2. Create your operator workspace (copy the template)
+# 2. Run setup — installs Skill to this directory
+cd tilelang-operator-dev && bash setup.sh && cd ..
+
+# 3. Create your operator workspace
 cp -r tilelang-operator-dev/resources/operator_template my-operators
-cd my-operators
 
-# 3. Open in Claude Code — auto-detection finds TileLang automatically!
-claude .
+# 4. Now you can use Claude Code from ANY of these directories:
+claude .                        # ← parent directory (my-tilelang-projects/)
+claude tilelang-operator-dev    # ← skill repo directly
+claude my-operators             # ← your operator workspace
 ```
 
-**No configuration needed!** The MCP server automatically detects TileLang source by searching:
-1. Sibling `tilelang/` directory (most common)
-2. Up to 3 parent levels
+The `setup.sh` script copies the Skill and MCP config to the parent directory so Claude Code discovers it from any location.
 
-**Directory structure:**
+### Manual Setup
+
+If you prefer not to run `setup.sh`:
+
+```bash
+# Clone
+git clone https://github.com/Leafoon/tilelang-operator-dev.git
+git clone https://github.com/tile-ai/tilelang.git
+
+# Option A: Use from parent directory
+mkdir -p .claude/skills/run-tilelang-mcp
+cp tilelang-operator-dev/.claude/skills/run-tilelang-mcp/SKILL.md .claude/skills/run-tilelang-mcp/
+# Copy .mcp.json and adjust the script path
+sed "s|\${workspaceFolder}/scripts|\${workspaceFolder}/tilelang-operator-dev/scripts|g" \
+    tilelang-operator-dev/resources/.mcp.json > .mcp.json
+
+# Option B: Use from operator workspace (zero config)
+cp -r tilelang-operator-dev/resources/operator_template my-operators
+cd my-operators && claude .
 ```
-my-projects/
-├── tilelang/                          # TileLang source (unchanged)
-├── tilelang-operator-dev/             # This skill repo
-└── my-operators/                      # Your operators!
-    ├── .mcp.json                      # MCP config
+
+### Directory Structure After Setup
+
+```
+my-tilelang-projects/               # ← parent directory (you can claude . here)
+├── .mcp.json                        # MCP config (from setup.sh)
+├── .claude/skills/run-tilelang-mcp/
+│   └── SKILL.md                     # Skill (from setup.sh)
+├── tilelang/                        # TileLang source
+├── tilelang-operator-dev/           # Skill repo
+│   ├── .mcp.json                    # MCP config (standalone workspace)
+│   ├── .claude/skills/run-tilelang-mcp/
+│   │   └── SKILL.md                 # Skill (can claude here too)
+│   ├── scripts/tilelang_operator_mcp.py
+│   └── resources/tilelang_knowledge/
+└── my-operators/                    # Your operators!
+    ├── .mcp.json                    # MCP config (auto-copied from template)
     ├── .claude/skills/run-tilelang-mcp/
-    │   └── SKILL.md                   # Skill instructions (auto-copied)
-    ├── init_operator.py               # Operator creation utility
-    ├── fused_moe/                     # Your operator 1
-    │   ├── operator.py
-    │   ├── test_operator.py
-    │   └── benchmark.py
-    └── flash_attention_v2/            # Your operator 2
-        └── ...
+    │   └── SKILL.md                 # Skill (auto-copied from template)
+    └── ...
 ```
 
 ### Global Install (use from any directory)
@@ -136,6 +141,8 @@ tilelang-operator-dev/
 ├── CHANGELOG.md                     # Version history
 ├── SETUP_GUIDE.md                   # Detailed setup guide
 ├── LICENSE                          # Apache-2.0
+├── setup.sh                         # One-command setup script
+├── .mcp.json                        # MCP configuration (standalone workspace)
 ├── .gitignore
 │
 ├── .claude/                         # Claude Code integration
@@ -187,6 +194,48 @@ tilelang-operator-dev/
     ├── test_cases.md                # Manual test cases
     └── eval.yaml                    # Evaluation configuration
 ```
+
+## Usage Examples
+
+After setup, open Claude Code in any of the three directories and ask questions like:
+
+### GEMM Operators
+
+- `Write a basic GEMM kernel for NVIDIA H100 with fp16 inputs`
+- `Develop a split-K GEMM operator for large K dimensions`
+- `Create a 2:4 sparse GEMM kernel for A100`
+- `Write a dequantized int4 GEMM kernel for Hopper`
+- `Build a grouped GEMM (MoE-style) operator for multiple experts`
+
+### Attention Operators
+
+- `Implement a flash attention forward kernel for H100`
+- `Write a GQA decode attention kernel with paged KV cache`
+- `Create an MLA decode kernel for DeepSeek-style models`
+
+### Device-Specific
+
+- `Write a GEMM kernel that runs on Apple M4 with Metal backend`
+- `Create an elementwise add operator for AMD MI300X`
+- `Develop a GEMM for NVIDIA B100 Blackwell architecture`
+
+### Reductions & Others
+
+- `Implement an online softmax kernel`
+- `Write an RMSNorm operator`
+- `Create a Top-K selection kernel`
+- `Build a 2D convolution operator using im2col`
+
+### Code Validation & Troubleshooting
+
+- `Validate this TileLang operator code` (paste your code)
+- `I'm getting a compilation error with WGMMA on my A100 — help me fix it`
+- `Why is my kernel producing incorrect results on AMD?`
+
+### Guided Workflow
+
+- `Walk me through developing a GEMM kernel step by step`
+- `Help me adapt my H100 kernel to work on A100`
 
 ## MCP Tools
 
