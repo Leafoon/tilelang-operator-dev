@@ -171,12 +171,15 @@ def knowledge_dir(root: Path) -> Path:
     """Resolve tilelang_knowledge directory.
 
     Priority:
-    1. Workspace-local tilelang_knowledge/ (user copied or generated)
+    1. Workspace-local tilelang_knowledge/ (user copied or generated) — only if it has required files
     2. Skill-bundled resources/tilelang_knowledge/ (built-in fallback)
     """
     local = root / "tilelang_knowledge"
     if local.is_dir():
-        return local
+        # Only use local if it has at least the core required files
+        local_has_files = all((local / f).is_file() for f in JSON_FILES + JSONL_FILES[:1])
+        if local_has_files:
+            return local
     if BUILTIN_KNOWLEDGE.is_dir():
         return BUILTIN_KNOWLEDGE
     return local  # return the expected path for error messages
@@ -208,7 +211,7 @@ def inspect_workspace(args: dict[str, Any]) -> dict[str, Any]:
     # Knowledge base: look first in operator workspace, then builtin
     local_kdir = operator_workspace / "tilelang_knowledge"
     kdir = knowledge_dir(operator_workspace)
-    using_builtin = kdir == BUILTIN_KNOWLEDGE and not local_kdir.is_dir()
+    using_builtin = kdir == BUILTIN_KNOWLEDGE
     missing_knowledge = []
     if not kdir.is_dir():
         missing_knowledge.append("tilelang_knowledge/")
@@ -288,7 +291,7 @@ def validate_knowledge(args: dict[str, Any]) -> dict[str, Any]:
 
     local_kdir = operator_workspace / "tilelang_knowledge"
     kdir = knowledge_dir(operator_workspace)
-    using_builtin = kdir == BUILTIN_KNOWLEDGE and not local_kdir.is_dir()
+    using_builtin = kdir == BUILTIN_KNOWLEDGE
     missing = [p for p in KNOWLEDGE_REQUIRED if not (kdir / p).is_file()]
     parse_errors: dict[str, Any] = {}
     counts: dict[str, int] = {}
