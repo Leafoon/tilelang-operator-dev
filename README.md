@@ -85,6 +85,8 @@ my-projects/
 ├── tilelang-operator-dev/             # This skill repo
 └── my-operators/                      # Your operators!
     ├── .mcp.json                      # MCP config
+    ├── .claude/skills/run-tilelang-mcp/
+    │   └── SKILL.md                   # Skill instructions (auto-copied)
     ├── init_operator.py               # Operator creation utility
     ├── fused_moe/                     # Your operator 1
     │   ├── operator.py
@@ -162,6 +164,8 @@ tilelang-operator-dev/
 │   │   └── README.md                # Knowledge base documentation
 │   ├── operator_template/           # Template for independent operators
 │   │   ├── .mcp.json                # Pre-configured MCP config
+│   │   ├── .claude/skills/run-tilelang-mcp/
+│   │   │   └── SKILL.md             # Skill instructions (auto-copied)
 │   │   ├── .gitignore               # Git ignore rules
 │   │   ├── README.md                # Template documentation
 │   │   ├── init_operator.py         # Workspace initialization script

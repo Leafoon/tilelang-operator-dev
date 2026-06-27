@@ -28,7 +28,7 @@ except ImportError:
 
 
 SUPPORTED_PROTOCOL = "2025-03-26"
-SERVER_INFO = {"name": "tilelang-operator-knowledge", "version": "0.4.1"}
+SERVER_INFO = {"name": "tilelang-operator-knowledge", "version": "0.4.2"}
 
 REPO_REQUIRED = [
     "tilelang/__init__.py",

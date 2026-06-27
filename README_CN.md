@@ -85,6 +85,8 @@ my-projects/
 ├── tilelang-operator-dev/             # 本技能仓库
 └── my-operators/                      # 你的算子！
     ├── .mcp.json                      # MCP 配置
+    ├── .claude/skills/run-tilelang-mcp/
+    │   └── SKILL.md                   # 技能指令（自动复制）
     ├── init_operator.py               # 算子创建工具
     ├── fused_moe/                     # 算子 1
     │   ├── operator.py

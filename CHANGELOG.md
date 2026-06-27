@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.2] - 2026-06-27
+
+### Fixed
+- **Skill discovery in operator template**: Added `.claude/skills/run-tilelang-mcp/SKILL.md` to `resources/operator_template/` so Claude Code discovers the skill when opening an operator workspace created from the template. Previously, only MCP tools were available but the skill instructions were missing.
+
 ## [0.4.1] - 2026-06-26
 
 ### Added
