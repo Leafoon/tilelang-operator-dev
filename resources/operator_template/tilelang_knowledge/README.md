@@ -24,6 +24,7 @@ tilelang_knowledge/
 ├── usage_patterns.jsonl   # Usage patterns and workflows
 ├── apis.jsonl             # API signatures
 ├── source_chunks.jsonl    # Source code fragments
+├── troubleshooting.jsonl  # Common issue patterns and fixes
 ├── semantic_graph.json    # Entity relationship graph
 ├── semantic_graph.mmd     # Mermaid diagram
 ├── manifest.json          # Knowledge base manifest
@@ -35,4 +36,5 @@ tilelang_knowledge/
 - Adding operator-specific patterns
 - Customizing device tuning recommendations
 - Adding internal API documentation
+- Adding internal troubleshooting records
 - Overriding default retrieval behavior

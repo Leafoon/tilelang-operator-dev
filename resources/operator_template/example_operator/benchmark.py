@@ -1,19 +1,16 @@
-"""Performance benchmark for example operator.
-
-Replace with benchmarks for your actual operator.
-"""
-import torch
+"""Performance benchmark for the example operator template."""
 import time
 
-# Import your operator
+import torch
+
 from .operator import example_matrix_multiply
 
 
 def benchmark_operator(M, N, K, iterations=100, warmup=10):
     """Benchmark the TileLang operator."""
-    A = torch.randn(M, K, device="cuda")
-    B = torch.randn(K, N, device="cuda")
-    C = torch.empty(M, N, device="cuda")
+    A = torch.randn(M, K, device="cuda", dtype=torch.float16)
+    B = torch.randn(K, N, device="cuda", dtype=torch.float16)
+    C = torch.empty(M, N, device="cuda", dtype=torch.float16)
 
     kernel = example_matrix_multiply(M, N, K)
 
@@ -42,8 +39,8 @@ def benchmark_operator(M, N, K, iterations=100, warmup=10):
 
 def benchmark_reference(M, N, K, iterations=100, warmup=10):
     """Benchmark the reference implementation (cuBLAS)."""
-    A = torch.randn(M, K, device="cuda")
-    B = torch.randn(K, N, device="cuda")
+    A = torch.randn(M, K, device="cuda", dtype=torch.float16)
+    B = torch.randn(K, N, device="cuda", dtype=torch.float16)
 
     # Warmup
     for _ in range(warmup):

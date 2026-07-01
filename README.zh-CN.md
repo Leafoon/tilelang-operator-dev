@@ -60,11 +60,13 @@ cd <workspace-root>/tilelang-operator-dev
 bash setup.sh
 ```
 
-该脚本会安装：
+该脚本会安装或更新：
 
 - Skill：`~/.claude/skills/tilelang-operator-dev/SKILL.md`
 - MCP 配置：`~/.claude/.mcp.json`
 - MCP 服务目标：`<workspace-root>/tilelang-operator-dev/scripts/tilelang_operator_mcp.py`
+
+如果 `~/.claude/.mcp.json` 已存在，`setup.sh` 会保留已有 MCP server，只更新 `tilelang-operator-knowledge`，并在写入前创建带时间戳的备份。
 
 生成的 MCP 配置形态如下：
 
@@ -102,7 +104,7 @@ claude .
 
 - `.mcp.json`，指向 `../tilelang-operator-dev/scripts/tilelang_operator_mcp.py`
 - `.claude/skills/tilelang-operator-dev/SKILL.md`，轻量 Claude Code Skill 入口
-- `init_operator.py`，用于创建算子目录
+- `init_operator.py`，用于创建算子目录，并校验附近、显式指定或 `TILELANG_SOURCE_PATH` 指向的 TileLang 源码仓库
 - `example_operator/`，算子起始模板
 
 默认工作区 MCP 配置：
@@ -198,9 +200,12 @@ WGMMA、TCGEN05、TMA、`cp.async`、MFMA、LDS、TMEM、`cluster_dims` 和 `is_
 python -m pytest tests/test_mcp_server.py -q
 python scripts/tilelang_operator_mcp.py --check
 python .claude/skills/run-tilelang-mcp/driver.py --smoke
+python scripts/audit_tilelang_knowledge.py --tilelang-source <workspace-root>/tilelang
 ```
 
 `run-tilelang-mcp` Skill 和 driver 保留用于 MCP 服务开发与 smoke test。它不是默认面向用户的算子开发 Skill。
+
+知识库审计会对照你提供的 TileLang checkout 检查 JSON/JSONL 解析、源码证据路径、行号范围以及官方 `examples/` 目录覆盖情况。
 
 ## 常见问题
 

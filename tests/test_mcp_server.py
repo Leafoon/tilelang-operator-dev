@@ -3,6 +3,9 @@
 Run with: python -m pytest tests/test_mcp_server.py -v
 """
 import json
+import os
+import py_compile
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -105,6 +108,7 @@ class TestWorkspaceValidation:
         result = get_tool_result("validate_knowledge_base")
         assert "status" in result
         assert "knowledge_source" in result
+        assert result["counts"]["troubleshooting.jsonl"] > 0
 
 
 # --- Device normalization ---
@@ -192,6 +196,23 @@ class TestSearchPatterns:
         assert result["status"] == "passed"
         assert len(result["results"]) == 0
 
+    def test_official_example_coverage_patterns(self):
+        cases = [
+            ("sm100 tcgen05 tma", "pattern.gemm.sm100_tcgen05_tma_ws"),
+            ("streamk gemm", "pattern.gemm.streamk"),
+            ("fusedmoe routed expert", "pattern.gemm.fused_moe"),
+            ("fp8 int4 gemm cast", "pattern.gemm.low_precision_fp8_int4"),
+            ("blocksparse sparse attention", "pattern.sparse.blocksparse_gemm_attention"),
+            ("deepseek nsa sparse mla", "pattern.attention.deepseek_sparse_mla_nsa_sink"),
+            ("linear attention kda gdn", "pattern.attention.linear_state_space"),
+            ("warp specialize barrier pipeline", "pattern.schedule.warp_specialize_and_autodd"),
+        ]
+        for query, expected_id in cases:
+            result = get_tool_result("search_patterns", {"query": query, "max_results": 5})
+            assert result["status"] == "passed"
+            ids = {r["pattern_id"] for r in result["results"]}
+            assert expected_id in ids
+
 
 class TestSearchUsagePatterns:
     def test_search(self):
@@ -210,6 +231,24 @@ class TestLookupApis:
     def test_visibility_filter(self):
         result = get_tool_result("lookup_apis", {"query": "gemm", "visibility": "public"})
         assert result["status"] == "passed"
+
+    def test_t_alias_symbol_exact_match_is_ranked_first(self):
+        result = get_tool_result("lookup_apis", {
+            "symbols": ["T.tcgen05_gemm"],
+            "max_results": 3,
+        })
+        assert result["status"] == "passed"
+        assert result["results"][0]["qualified_name"] == "tilelang.language.gemm_op.tcgen05_gemm"
+        assert result["results"][0]["relevance_score"] > result["results"][1]["relevance_score"]
+
+    def test_symbol_only_lookup_drops_zero_score_records(self):
+        result = get_tool_result("lookup_apis", {
+            "symbols": ["T.alloc_tmem"],
+            "max_results": 10,
+        })
+        assert result["status"] == "passed"
+        assert result["results"]
+        assert all(r["relevance_score"] > 0 for r in result["results"])
 
 
 class TestGetSourceChunks:
@@ -273,6 +312,33 @@ class TestSearchTroubleshooting:
         result = get_tool_result("search_troubleshooting", {"query": "", "category": "compilation"})
         assert result["status"] == "passed"
 
+    def test_uses_workspace_local_knowledge_base(self, tmp_path):
+        local_kb = tmp_path / "tilelang_knowledge"
+        shutil.copytree(REPO_ROOT / "resources" / "tilelang_knowledge", local_kb)
+        custom_issue = {
+            "issue_id": "issue.local.override",
+            "title": "Local override issue",
+            "category": "compilation",
+            "severity": "high",
+            "description": "Workspace-local troubleshooting record.",
+            "error_patterns": ["local-only-error-token"],
+            "solution": "Use the workspace-local troubleshooting record.",
+            "example_fix": "Local fix.",
+            "related_symbols": ["T.local_override"],
+            "evidence": ["workspace-local"],
+        }
+        (local_kb / "troubleshooting.jsonl").write_text(
+            json.dumps(custom_issue) + "\n",
+            encoding="utf-8",
+        )
+
+        result = get_tool_result("search_troubleshooting", {
+            "workspace_path": str(tmp_path),
+            "query": "local-only-error-token",
+        })
+        assert result["status"] == "passed"
+        assert result["results"][0]["issue_id"] == "issue.local.override"
+
 
 class TestValidateOperatorCode:
     def test_validate_valid_code(self):
@@ -300,6 +366,94 @@ def broken(
         result = get_tool_result("validate_operator_code", {"code": code})
         # May fail syntax check but should handle gracefully
         assert "status" in result
+
+    def test_accepts_official_t_alias_and_host_side_python(self):
+        code = """
+import tilelang
+from tilelang import language as T
+
+@tilelang.jit
+def kernel(M):
+    @T.prim_func
+    def main(A: T.Tensor((M,), T.float32)):
+        with T.Kernel(T.ceildiv(M, 128), threads=128) as bx:
+            A[bx] = T.float32(0)
+    return main
+
+def host_debug():
+    print("host side only")
+    for i in range(3):
+        pass
+"""
+        result = get_tool_result("validate_operator_code", {"code": code})
+        assert result["valid"] is True
+        warnings = "\n".join(result["warnings"])
+        assert "without importing tilelang.language as T" not in warnings
+        assert "Python print() inside TileLang kernels" not in warnings
+        assert "Python range() inside TileLang kernels" not in warnings
+
+
+class TestOperatorTemplate:
+    def test_example_operator_template_is_python_syntax_valid(self):
+        template_root = REPO_ROOT / "resources" / "operator_template"
+        for path in [
+            template_root / "init_operator.py",
+            template_root / "example_operator" / "operator.py",
+            template_root / "example_operator" / "test_operator.py",
+            template_root / "example_operator" / "benchmark.py",
+        ]:
+            py_compile.compile(str(path), doraise=True)
+
+
+class TestKnowledgeAuditScript:
+    def test_audit_reports_example_coverage_without_failing(self, tmp_path):
+        source = tmp_path / "tilelang"
+        knowledge = tmp_path / "tilelang_knowledge"
+        (source / "examples" / "gemm").mkdir(parents=True)
+        (source / "examples" / "attention").mkdir(parents=True)
+        (source / "examples" / "gemm" / "example.py").write_text("print('ok')\n", encoding="utf-8")
+        (source / "examples" / "quickstart.py").write_text("print('root example')\n", encoding="utf-8")
+        (source / "tilelang" / "language").mkdir(parents=True)
+        (source / "tilelang" / "language" / "copy_op.py").write_text("def copy():\n    pass\n", encoding="utf-8")
+        knowledge.mkdir()
+        (knowledge / "patterns.jsonl").write_text(json.dumps({
+            "pattern_id": "pattern.test",
+            "source_files": ["examples/gemm/example.py"],
+            "evidence": [{"file_path": "examples/gemm/example.py", "line": 1}],
+        }) + "\n", encoding="utf-8")
+        with (knowledge / "patterns.jsonl").open("a", encoding="utf-8") as f:
+            f.write(json.dumps({
+                "pattern_id": "pattern.root-example",
+                "source_files": ["examples/quickstart.py"],
+            }) + "\n")
+        (knowledge / "apis.jsonl").write_text(json.dumps({
+            "qualified_name": "tilelang.language.copy_op.copy",
+            "file_path": "tilelang/language/copy_op.py",
+            "line_start": 1,
+            "line_end": 2,
+        }) + "\n", encoding="utf-8")
+
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(REPO_ROOT / "scripts" / "audit_tilelang_knowledge.py"),
+                "--tilelang-source",
+                str(source),
+                "--knowledge-dir",
+                str(knowledge),
+                "--json",
+            ],
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+        )
+        result = json.loads(proc.stdout)
+        assert result["status"] == "passed"
+        assert result["missing_reference_count"] == 0
+        assert result["line_issue_count"] == 0
+        assert "gemm" in result["example_coverage"]["covered_dirs"]
+        assert "quickstart.py" not in result["example_coverage"]["covered_dirs"]
+        assert "attention" in result["example_coverage"]["missing_dirs"]
 
 
 class TestOperatorDevelopmentWizard:
@@ -330,6 +484,65 @@ class TestOperatorDevelopmentWizard:
         assert first["step_id"] == 1
         assert "workspace" in first["results"]
         assert "knowledge_base" in first["results"]
+
+    def test_wizard_step_1_preserves_tilelang_source_path(self, tmp_path):
+        """Regression: wizard auto-validation should pass explicit TileLang source."""
+        workspace = tmp_path / "operators"
+        source = tmp_path / "tilelang-source"
+        workspace.mkdir()
+        (source / "tilelang" / "language").mkdir(parents=True)
+        (source / "tilelang" / "__init__.py").write_text("", encoding="utf-8")
+        (source / "tilelang" / "language" / "__init__.py").write_text("", encoding="utf-8")
+        (source / "src" / "transform").mkdir(parents=True)
+        (source / "docs").mkdir()
+
+        result = get_tool_result("operator_development_wizard", {
+            "current_step": 1,
+            "workspace_path": str(workspace),
+            "tilelang_source_path": str(source),
+        })
+        first = result["auto_completed"][0]
+        workspace_result = first["results"]["workspace"]
+        assert workspace_result["status"] == "passed"
+        assert workspace_result["tilelang_source_path"] == str(source.resolve())
+
+
+class TestSetupScript:
+    def test_setup_merges_existing_mcp_config(self, tmp_path):
+        home = tmp_path / "home"
+        claude_dir = home / ".claude"
+        claude_dir.mkdir(parents=True)
+        config_path = claude_dir / ".mcp.json"
+        config_path.write_text(json.dumps({
+            "mcpServers": {
+                "existing-server": {
+                    "command": "existing",
+                    "args": ["keep-me"],
+                }
+            },
+            "otherConfig": True,
+        }), encoding="utf-8")
+
+        env = os.environ.copy()
+        env["HOME"] = str(home)
+        subprocess.run(
+            ["bash", str(REPO_ROOT / "setup.sh")],
+            cwd=REPO_ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+
+        merged = json.loads(config_path.read_text(encoding="utf-8"))
+        assert merged["otherConfig"] is True
+        assert "existing-server" in merged["mcpServers"]
+        assert "tilelang-operator-knowledge" in merged["mcpServers"]
+        assert merged["mcpServers"]["tilelang-operator-knowledge"]["args"] == [
+            str(REPO_ROOT / "scripts" / "tilelang_operator_mcp.py")
+        ]
+        assert (home / ".claude" / "skills" / "tilelang-operator-dev" / "SKILL.md").is_file()
+        assert list(claude_dir.glob(".mcp.json.bak.*"))
 
 
 # --- Dual-workspace mode tests ---

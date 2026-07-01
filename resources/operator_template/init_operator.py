@@ -4,6 +4,7 @@
 Run this script to set up a new operator workspace or validate an existing one.
 """
 import argparse
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -16,18 +17,33 @@ def print_banner():
     print()
 
 
-def find_tilelang_source() -> Path | None:
-    """Auto-detect TileLang source by checking sibling and parent directories."""
+def is_tilelang_source(path: Path) -> bool:
+    """Return whether a path looks like a TileLang source checkout."""
+    return (path / "tilelang" / "__init__.py").is_file()
+
+
+def find_tilelang_source(explicit_path: str | None = None) -> Path | None:
+    """Resolve TileLang source using explicit path, env var, then nearby directories."""
     cwd = Path.cwd().resolve()
 
+    if explicit_path:
+        candidate = Path(explicit_path).expanduser().resolve()
+        return candidate if is_tilelang_source(candidate) else None
+
+    env_path = os.environ.get("TILELANG_SOURCE_PATH")
+    if env_path:
+        candidate = Path(env_path).expanduser().resolve()
+        if is_tilelang_source(candidate):
+            return candidate
+
     candidates = [
-        cwd / "tilelang",           # Same level
-        cwd.parent / "tilelang",    # One level up
+        cwd / "tilelang",
+        cwd.parent / "tilelang",
+        cwd.parent.parent / "tilelang",
     ]
 
     for candidate in candidates:
-        init_file = candidate / "tilelang" / "__init__.py"
-        if init_file.exists():
+        if is_tilelang_source(candidate):
             return candidate
 
     return None
@@ -98,6 +114,11 @@ def main():
         action="store_true",
         help="List existing operators in the workspace",
     )
+    parser.add_argument(
+        "--tilelang-source",
+        type=str,
+        help="Explicit path to a TileLang source checkout",
+    )
 
     args = parser.parse_args()
     print_banner()
@@ -107,9 +128,15 @@ def main():
     print()
 
     # Auto-detect TileLang source
-    tilelang_source = find_tilelang_source()
+    tilelang_source = find_tilelang_source(args.tilelang_source)
     if tilelang_source:
-        print(f"🔍 Auto-detected TileLang source: {tilelang_source}")
+        if args.tilelang_source:
+            source_label = "Configured TileLang source"
+        elif os.environ.get("TILELANG_SOURCE_PATH"):
+            source_label = "TileLang source from TILELANG_SOURCE_PATH"
+        else:
+            source_label = "Auto-detected TileLang source"
+        print(f"🔍 {source_label}: {tilelang_source}")
         validate_tilelang_source(tilelang_source)
     else:
         print("ℹ️  TileLang source not auto-detected.")

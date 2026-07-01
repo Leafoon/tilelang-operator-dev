@@ -22,6 +22,7 @@ This directory is a layered knowledge base for later TileLang operator developme
 - `usage_patterns.jsonl`: minimal call sequences, prerequisites, and failure modes.
 - `apis.jsonl`: public and important internal symbols with signatures, line ranges, visibility, and evidence.
 - `source_chunks.jsonl`: selected source/doc/backend chunks for final fallback retrieval.
+- `troubleshooting.jsonl`: common issue patterns, severity, evidence, and suggested fixes.
 - `semantic_graph.json`: machine-readable concept/symbol/pattern graph.
 - `semantic_graph.mmd`: compact Mermaid graph for human orientation.
 
@@ -43,6 +44,7 @@ When a user provides a vendor/model, resolve the target first, for example `cuda
 5. Use `apis.jsonl` to confirm signatures, visibility, modules, and line ranges.
 6. Use `source_chunks.jsonl` only when the previous layers are ambiguous or incomplete, especially for architecture-specific intrinsic or memory behavior.
 7. Use `semantic_graph.json` or `semantic_graph.mmd` when tracing dependencies, concept relationships, or device-family links.
+8. Use `troubleshooting.jsonl` when compile, runtime, correctness, or performance errors occur.
 
 Do not start a future operator-generation task by scanning the whole source tree unless these layers fail to answer the question.
 

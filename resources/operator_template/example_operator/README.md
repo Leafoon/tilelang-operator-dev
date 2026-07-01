@@ -1,10 +1,13 @@
 # Example Matrix Multiply Operator
 
-This is an example operator to demonstrate the structure of a TileLang operator.
+This is a minimal TileLang operator template that mirrors the style of the
+official GEMM examples.
 
 ## Overview
 
-This operator implements a basic tiled matrix multiplication using TileLang's GEMM intrinsic.
+This operator implements a basic tiled matrix multiplication using `T.gemm`.
+Use it as a starting point, then retrieve the closest pattern and API evidence
+from `tilelang-operator-knowledge` before adding target-specific features.
 
 ## Usage
 
@@ -15,7 +18,7 @@ from operator import example_matrix_multiply
 M, N, K = 512, 512, 512
 A = torch.randn(M, K, device="cuda")
 B = torch.randn(K, N, device="cuda")
-C = torch.empty(M, N, device="cuda")
+C = torch.empty(M, N, device="cuda", dtype=torch.float16)
 
 kernel = example_matrix_multiply(M, N, K)
 kernel(A, B, C)
@@ -35,7 +38,7 @@ kernel(A, B, C)
 - Pipeline stages: 3
 - Threads per block: 128
 - Uses shared memory for tile staging
-- Uses T.gemm intrinsic for tensor core acceleration
+- Uses `T.gemm`; exact lowering depends on target, dtype, and TileLang passes
 
 ## Test Results
 
@@ -53,7 +56,7 @@ python benchmark.py
 
 ## Optimization Opportunities
 
-- [ ] Use WMMA intrinsics for better tensor core utilization
+- [ ] Retrieve target-specific GEMM, WGMMA, TCGEN05, or MFMA evidence before changing the intrinsic path
 - [ ] Optimize pipeline stages and prefetching
 - [ ] Add support for mixed precision (FP8/BF16)
 - [ ] Implement split-K for larger K dimensions
@@ -61,12 +64,11 @@ python benchmark.py
 
 ## Known Limitations
 
-- Only works on NVIDIA GPUs with CUDA capability >= 7.0
+- Example tests assume a CUDA runtime and tile-aligned sizes
 - Fixed tile size configuration
-- No dynamic shape support yet
+- No boundary masking or dynamic shape support yet
 
 ## References
 
-- TileLang GEMM documentation
-- NVIDIA CUDA Programming Guide
-- Tensor Core Performance Guide
+- Official TileLang `examples/gemm/example_gemm.py`
+- TileLang Operator Skill retrieval results for the selected device

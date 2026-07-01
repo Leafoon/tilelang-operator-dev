@@ -41,6 +41,7 @@
     "apis.jsonl",
     "patterns.jsonl",
     "usage_patterns.jsonl",
+    "troubleshooting.jsonl",
     "semantic_graph.json",
     "semantic_graph.mmd",
     "source_chunks.jsonl"
@@ -50,7 +51,8 @@
     "Records prioritize operator-development retrieval over exhaustive whole-repository indexing.",
     "Confidence is lower where claims are inferred from examples/tests or pass names rather than direct documentation.",
     "Device adaptation fields added to capability_map.json, patterns.jsonl, usage_patterns.jsonl, and source_chunks.jsonl.",
-    "Device support is evidence-backed where possible; Metal/WebGPU and some advanced architecture-specific paths remain lower confidence until validated on target hardware."
+    "Device support is evidence-backed where possible; Metal/WebGPU and some advanced architecture-specific paths remain lower confidence until validated on target hardware.",
+    "SM100 TCGEN05, Stream-K GEMM, fused MoE, low-precision, sparse, DeepSeek-style, linear attention, vector/layout, and warp-specialization pattern indexes were added so every official examples/ first-level directory has at least one retrieval entry. Index records still require source/API confirmation before code generation."
   ],
   "device_integration": {
     "schema_version": "device-adaptation-v1",

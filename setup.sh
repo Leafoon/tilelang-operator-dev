@@ -9,22 +9,51 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILL_NAME="tilelang-operator-dev"
 MCP_SERVER="$SCRIPT_DIR/scripts/tilelang_operator_mcp.py"
+MCP_CONFIG="$HOME/.claude/.mcp.json"
 
 # Install the operator development skill globally.
 mkdir -p "$HOME/.claude/skills/$SKILL_NAME"
 cp "$SCRIPT_DIR/SKILL.md" "$HOME/.claude/skills/$SKILL_NAME/SKILL.md"
 
-# Install MCP config globally.
-cat > "$HOME/.claude/.mcp.json" << EOF
-{
-  "mcpServers": {
-    "tilelang-operator-knowledge": {
-      "command": "python3",
-      "args": ["$MCP_SERVER"]
-    }
-  }
+# Upsert MCP config globally without deleting other configured servers.
+mkdir -p "$HOME/.claude"
+MCP_CONFIG="$MCP_CONFIG" MCP_SERVER="$MCP_SERVER" python3 <<'PY'
+import json
+import os
+import shutil
+import time
+from pathlib import Path
+
+config_path = Path(os.environ["MCP_CONFIG"]).expanduser()
+mcp_server = os.environ["MCP_SERVER"]
+server_name = "tilelang-operator-knowledge"
+
+data = {}
+if config_path.exists():
+    backup_path = config_path.with_name(
+        f"{config_path.name}.bak.{time.strftime('%Y%m%d%H%M%S')}"
+    )
+    shutil.copy2(config_path, backup_path)
+    try:
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            data = {}
+    except json.JSONDecodeError:
+        data = {"_previous_config_backup": str(backup_path)}
+
+mcp_servers = data.get("mcpServers")
+if not isinstance(mcp_servers, dict):
+    mcp_servers = {}
+data["mcpServers"] = mcp_servers
+mcp_servers[server_name] = {
+    "command": "python3",
+    "args": [mcp_server],
 }
-EOF
+
+tmp_path = config_path.with_suffix(config_path.suffix + ".tmp")
+tmp_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+tmp_path.replace(config_path)
+PY
 
 echo "Done!"
 echo "  Skill:     ~/.claude/skills/$SKILL_NAME/SKILL.md"

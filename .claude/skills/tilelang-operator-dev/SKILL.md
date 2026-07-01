@@ -17,7 +17,7 @@ Support both layouts:
 Recommended local layout:
 
 ```text
-/temp/
+<workspace-root>/
 ├── tilelang-operator-dev/   # this skill and MCP server
 ├── tilelang/                # official TileLang source repository
 └── my-operators/            # independent Claude Code operator workspace
@@ -25,7 +25,7 @@ Recommended local layout:
 
 In dual-workspace mode, the active workspace does not need to be the TileLang source repository. The MCP server resolves TileLang source from `tilelang_source_path`, `TILELANG_SOURCE_PATH`, auto-detected sibling/parent `tilelang/`, or the active workspace as a final fallback.
 
-The knowledge base resolves from workspace-local `tilelang_knowledge/` first, then bundled `resources/tilelang_knowledge/` from the `tilelang-operator-dev` repository.
+The knowledge base resolves from workspace-local `tilelang_knowledge/` first, then bundled `resources/tilelang_knowledge/` from the `tilelang-operator-dev` repository. A complete delivery set includes retrieval, capability, pattern, usage, API, source chunk, semantic graph, manifest, README, and troubleshooting records.
 
 ## Mandatory MCP-First Validation
 

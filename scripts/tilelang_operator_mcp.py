@@ -54,9 +54,10 @@ KNOWLEDGE_REQUIRED = [
     "semantic_graph.mmd",
     "manifest.json",
     "README.md",
+    "troubleshooting.jsonl",
 ]
 JSON_FILES = ["capability_map.json", "semantic_graph.json", "manifest.json"]
-JSONL_FILES = ["patterns.jsonl", "usage_patterns.jsonl", "apis.jsonl", "source_chunks.jsonl"]
+JSONL_FILES = ["patterns.jsonl", "usage_patterns.jsonl", "apis.jsonl", "source_chunks.jsonl", "troubleshooting.jsonl"]
 
 
 class McpError(Exception):
@@ -176,8 +177,9 @@ def knowledge_dir(root: Path) -> Path:
     """
     local = root / "tilelang_knowledge"
     if local.is_dir():
-        # Only use local if it has at least the core required files
-        local_has_files = all((local / f).is_file() for f in JSON_FILES + JSONL_FILES[:1])
+        # Only use a local delivery set when it is complete enough to avoid
+        # silently mixing workspace records with bundled records.
+        local_has_files = all((local / f).is_file() for f in KNOWLEDGE_REQUIRED)
         if local_has_files:
             return local
     if BUILTIN_KNOWLEDGE.is_dir():
@@ -351,6 +353,52 @@ def normalize_text(value: Any) -> str:
 
 def tokens(query: str) -> list[str]:
     return [t for t in re.split(r"[^A-Za-z0-9_+.-]+", query.lower()) if len(t) >= 2]
+
+
+def api_symbol_aliases(value: Any) -> list[str]:
+    """Return searchable aliases for API symbols such as T.copy or tl.copy."""
+    raw = normalize_text(value)
+    aliases: list[str] = []
+    for item in re.split(r"[\s,;]+", raw):
+        symbol = item.strip().strip("`'\"")
+        if not symbol:
+            continue
+        candidates = [symbol]
+        for prefix in ("T.", "tl."):
+            if symbol.startswith(prefix):
+                candidates.append(symbol[len(prefix):])
+        if symbol.startswith("tilelang.language."):
+            candidates.append(symbol.rsplit(".", 1)[-1])
+        if "." in symbol:
+            candidates.append(symbol.rsplit(".", 1)[-1])
+        for candidate in candidates:
+            lowered = candidate.lower()
+            if lowered and lowered not in aliases:
+                aliases.append(lowered)
+    return aliases
+
+
+def api_exact_symbol_boost(record: dict[str, Any], aliases: list[str]) -> tuple[float, list[str]]:
+    """Boost API records whose qualified name matches requested symbol aliases."""
+    if not aliases:
+        return 0.0, []
+
+    qualified = normalize_text(record.get("qualified_name")).lower()
+    signature = normalize_text(record.get("signature")).lower()
+    short_name = qualified.rsplit(".", 1)[-1] if qualified else ""
+    signature_name = signature.split("(", 1)[0].rsplit(".", 1)[-1]
+
+    score = 0.0
+    matches: list[str] = []
+    for alias in aliases:
+        tail = alias.rsplit(".", 1)[-1]
+        if alias == qualified or qualified.endswith("." + alias):
+            score += 8.0
+            matches.append(alias)
+        elif tail and tail in {short_name, signature_name}:
+            score += 7.0
+            matches.append(tail)
+    return score, sorted(set(matches))
 
 
 def score_record(record: dict[str, Any], query: str, fields: list[str]) -> tuple[float, dict[str, Any]]:
@@ -682,21 +730,31 @@ def lookup_apis(args: dict[str, Any]) -> dict[str, Any]:
     root = workspace_root(args.get("workspace_path"))
     query = normalize_text(args.get("query"))
     symbols = normalize_text(args.get("symbols"))
+    symbol_aliases = api_symbol_aliases(args.get("symbols"))
     visibility = normalize_text(args.get("visibility")).lower()
     module = normalize_text(args.get("module")).lower()
     records = load_jsonl(root, "apis.jsonl")
     scored = []
+    has_lookup_query = bool(query or symbols or symbol_aliases)
     for rec in records:
         if visibility and visibility != normalize_text(rec.get("visibility")).lower():
             continue
         if module and module not in normalize_text(rec.get("module")).lower():
             continue
-        score, match_details = score_record(rec, query + " " + symbols, ["qualified_name", "signature", "docstring", "short_summary", "operator_relevance", "module"])
+        score, match_details = score_record(
+            rec,
+            query + " " + symbols + " " + " ".join(symbol_aliases),
+            ["qualified_name", "signature", "docstring", "short_summary", "operator_relevance", "module"],
+        )
+        exact_boost, exact_matches = api_exact_symbol_boost(rec, symbol_aliases)
+        score += exact_boost
 
         # Build match reason
         match_reasons = []
         if match_details.get("explanation"):
             match_reasons.append(match_details["explanation"])
+        if exact_matches:
+            match_reasons.append(f"Exact API symbol match: {', '.join(exact_matches)}")
         if visibility:
             match_reasons.append(f"Filtered by visibility: {visibility}")
         if module:
@@ -707,10 +765,17 @@ def lookup_apis(args: dict[str, Any]) -> dict[str, Any]:
         rec_with_match = dict(rec)
         rec_with_match["_match_reason"] = "; ".join(match_reasons) if match_reasons else "Returned all results (empty query)"
         rec_with_match["_relevance_score"] = round(score, 2)
-        rec_with_match["_matched_terms"] = match_details.get("matched_terms", [])
+        matched_terms = []
+        for term in match_details.get("matched_terms", []):
+            if term not in matched_terms:
+                matched_terms.append(term)
+        for term in exact_matches:
+            if term not in matched_terms:
+                matched_terms.append(term)
+        rec_with_match["_matched_terms"] = matched_terms
         rec_with_match["_matched_fields"] = match_details.get("matched_fields", [])
 
-        if score > 0 or not query:
+        if score > 0 or not has_lookup_query:
             scored.append((score, rec_with_match))
     scored.sort(key=lambda x: (x[0], normalize_text(x[1].get("visibility")) == "public"), reverse=True)
     results = []
@@ -882,8 +947,7 @@ def search_troubleshooting(args: dict[str, Any]) -> dict[str, Any]:
     category = normalize_text(args.get("category")).lower()
     severity = normalize_text(args.get("severity")).lower()
 
-    knowledge_dir = Path(__file__).resolve().parent.parent / "resources" / "tilelang_knowledge"
-    troubleshooting_path = knowledge_dir / "troubleshooting.jsonl"
+    troubleshooting_path = knowledge_dir(root) / "troubleshooting.jsonl"
 
     if not troubleshooting_path.is_file():
         return {
@@ -892,7 +956,13 @@ def search_troubleshooting(args: dict[str, Any]) -> dict[str, Any]:
             "results": []
         }
 
-    records, _ = parse_jsonl(troubleshooting_path)
+    records, errors = parse_jsonl(troubleshooting_path)
+    if errors:
+        return {
+            "status": "failed",
+            "error": f"Cannot parse troubleshooting.jsonl: {errors[0]}",
+            "results": []
+        }
     scored = []
 
     for rec in records:
@@ -978,9 +1048,43 @@ def validate_operator_code(args: dict[str, Any]) -> dict[str, Any]:
     checks = []
     warnings = []
     errors = []
+    tree = None
+
+    import ast
+
+    def dotted_name(node: ast.AST) -> str:
+        if isinstance(node, ast.Name):
+            return node.id
+        if isinstance(node, ast.Attribute):
+            prefix = dotted_name(node.value)
+            return f"{prefix}.{node.attr}" if prefix else node.attr
+        return ""
+
+    def decorator_name(node: ast.AST) -> str:
+        if isinstance(node, ast.Call):
+            return dotted_name(node.func)
+        return dotted_name(node)
+
+    def is_tilelang_kernel_function(node: ast.AST) -> bool:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            return False
+        decorators = {decorator_name(d) for d in node.decorator_list}
+        return bool(decorators & {"tilelang.jit", "T.prim_func", "tl.jit", "jit", "prim_func"})
+
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as e:
+        if run_static_check:
+            errors.append(f"Python syntax error: {e.msg} at line {e.lineno}")
+            checks.append({
+                "check": "python_syntax",
+                "status": "failed",
+                "message": f"Syntax error: {e.msg}",
+                "line": e.lineno
+            })
 
     # 1. Check for basic structure
-    if "@tilelang.jit" not in code and "@tilelang.jit" not in code:
+    if "@tilelang.jit" not in code and "@jit" not in code:
         warnings.append("Missing @tilelang.jit decorator - code may not compile as a TileLang kernel")
 
     # 2. Check for Tensor declaration pattern
@@ -988,23 +1092,48 @@ def validate_operator_code(args: dict[str, Any]) -> dict[str, Any]:
         warnings.append("No T.Tensor declarations found - this may not be a complete TileLang operator")
 
     # 3. Check for imports
-    if "import tilelang" not in code and "from tilelang" not in code:
-        warnings.append("Missing 'import tilelang' statement")
-    if "import tilelang.language" not in code and "from tilelang.language" not in code:
-        if "T." in code:
-            warnings.append("Using T.* without importing tilelang.language as T")
+    has_tilelang_import = "import tilelang" in code or "from tilelang" in code
+    has_t_alias = "import tilelang.language as T" in code or "from tilelang import language as T" in code
+    if tree is not None:
+        has_tilelang_import = False
+        has_t_alias = False
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "tilelang" or alias.name.startswith("tilelang."):
+                        has_tilelang_import = True
+                    if alias.name == "tilelang.language" and alias.asname == "T":
+                        has_t_alias = True
+            elif isinstance(node, ast.ImportFrom):
+                if node.module == "tilelang":
+                    has_tilelang_import = True
+                    if any(alias.name == "language" and alias.asname == "T" for alias in node.names):
+                        has_t_alias = True
+                elif node.module == "tilelang.language":
+                    has_tilelang_import = True
 
-    # 4. Check for common anti-patterns
-    common_issues = {
-        "print(": "Python print() will not work inside TileLang kernels - use T.print() if available",
-        "list(": "Python list() may not work inside TileLang kernels - use T.Tensor or T.alloc_shared",
-        "dict(": "Python dict() may not work inside TileLang kernels",
-        "for i in range": "Use T.for_range() instead of Python range() inside kernels",
-        "if ": "Simple Python if may not work for tensor conditions - consider T.if()",
-    }
-    for pattern, message in common_issues.items():
-        if pattern in code:
-            warnings.append(f"Potential issue: {message}")
+    if not has_tilelang_import:
+        warnings.append("Missing 'import tilelang' or 'from tilelang ...' statement")
+    if "T." in code and not has_t_alias:
+        warnings.append("Using T.* without importing tilelang.language as T")
+
+    # 4. Check for common anti-patterns inside TileLang kernel functions only.
+    if tree is not None:
+        anti_patterns = {
+            "print": "Python print() inside TileLang kernels will not work - use T.print() if available",
+            "list": "Python list() inside TileLang kernels may not lower - use T.Tensor or T.alloc_* buffers",
+            "dict": "Python dict() inside TileLang kernels may not lower",
+            "range": "Python range() inside TileLang kernels may not lower - use T.serial, T.Pipelined, T.Parallel, or static host loops",
+        }
+        seen_warnings: set[str] = set()
+        for fn in [n for n in ast.walk(tree) if is_tilelang_kernel_function(n)]:
+            for node in ast.walk(fn):
+                if not isinstance(node, ast.Call):
+                    continue
+                call_name = dotted_name(node.func)
+                if call_name in anti_patterns and call_name not in seen_warnings:
+                    warnings.append(f"Potential issue: {anti_patterns[call_name]}")
+                    seen_warnings.add(call_name)
 
     # 5. Check for kernel structure
     has_kernel = "T.Kernel" in code or "with Kernel" in code
@@ -1042,22 +1171,11 @@ def validate_operator_code(args: dict[str, Any]) -> dict[str, Any]:
         })
 
     # 7. Syntax validation (basic Python syntax check)
-    if run_static_check:
-        import ast
-        try:
-            ast.parse(code)
+    if run_static_check and tree is not None:
             checks.append({
                 "check": "python_syntax",
                 "status": "passed",
                 "message": "Python syntax is valid"
-            })
-        except SyntaxError as e:
-            errors.append(f"Python syntax error: {e.msg} at line {e.lineno}")
-            checks.append({
-                "check": "python_syntax",
-                "status": "failed",
-                "message": f"Syntax error: {e.msg}",
-                "line": e.lineno
             })
 
     # 8. Check for common GEMM patterns
@@ -1109,6 +1227,7 @@ def operator_development_wizard(args: dict[str, Any]) -> dict[str, Any]:
     operator_intent = normalize_text(args.get("operator_intent", ""))
     device_profile = args.get("device_profile", {})
     workspace_path = args.get("workspace_path")
+    tilelang_source_path = args.get("tilelang_source_path")
 
     # Define the workflow steps
     workflow_steps = {
@@ -1230,8 +1349,12 @@ def operator_development_wizard(args: dict[str, Any]) -> dict[str, Any]:
     auto_completed = []
     if current_step == 1 and workspace_path:
         # Auto-run workspace validation
-        workspace_result = inspect_workspace({"workspace_path": workspace_path})
-        kb_result = validate_knowledge({"workspace_path": workspace_path})
+        validation_args = {
+            "workspace_path": workspace_path,
+            "tilelang_source_path": tilelang_source_path,
+        }
+        workspace_result = inspect_workspace(validation_args)
+        kb_result = validate_knowledge(validation_args)
         auto_completed.append({
             "step_id": 1,
             "results": {

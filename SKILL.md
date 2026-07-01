@@ -37,7 +37,7 @@ Support both layouts:
 Recommended local layout:
 
 ```text
-/temp/
+<workspace-root>/
 ├── tilelang-operator-dev/   # this skill and MCP server
 ├── tilelang/                # official TileLang source repository
 └── my-operators/            # independent Claude Code operator workspace
@@ -86,7 +86,7 @@ Missing or invalid:
 - <specific missing repository indicator, delivery file, parse error, or version mismatch>
 
 Required fix:
-- Ensure a TileLang source repository is available, for example /temp/tilelang.
+- Ensure a TileLang source repository is available, for example <workspace-root>/tilelang.
 - Ensure the Claude Code workspace can load tilelang-operator-knowledge from tilelang-operator-dev.
 - Restore workspace-local tilelang_knowledge/ or bundled resources/tilelang_knowledge/.
 - Re-invoke the tilelang-operator-dev skill.
@@ -113,6 +113,7 @@ A valid delivery set must include:
 - `semantic_graph.mmd`
 - `manifest.json`
 - `README.md`
+- `troubleshooting.jsonl`
 
 ## Required Opening Status
 

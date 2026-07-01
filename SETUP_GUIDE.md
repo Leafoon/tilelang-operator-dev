@@ -4,10 +4,10 @@ This guide is a concise operational companion to `README.md`. The supported targ
 
 ## Recommended Layout
 
-Use three sibling directories:
+Use three sibling directories under any local parent directory:
 
 ```text
-/temp/
+<workspace-root>/
 ├── tilelang-operator-dev/      # full skill and MCP repository
 ├── tilelang/                   # official TileLang source repository
 └── my-operators/               # independent operator workspace
@@ -16,7 +16,8 @@ Use three sibling directories:
 Prepare the repositories:
 
 ```bash
-cd /temp
+mkdir -p <workspace-root>
+cd <workspace-root>
 git clone https://github.com/Leafoon/tilelang-operator-dev.git
 git clone https://github.com/tile-ai/tilelang.git
 ```
@@ -26,7 +27,7 @@ git clone https://github.com/tile-ai/tilelang.git
 Use this when you want the skill available from any Claude Code workspace.
 
 ```bash
-cd /temp/tilelang-operator-dev
+cd <workspace-root>/tilelang-operator-dev
 bash setup.sh
 ```
 
@@ -40,8 +41,8 @@ This installs:
 Then open an operator workspace:
 
 ```bash
-mkdir -p /temp/my-operators
-cd /temp/my-operators
+mkdir -p <workspace-root>/my-operators
+cd <workspace-root>/my-operators
 claude .
 ```
 
@@ -50,7 +51,7 @@ claude .
 Use this when the operator workspace should carry its own Claude Code MCP config and lightweight skill entrypoint.
 
 ```bash
-cd /temp
+cd <workspace-root>
 cp -R tilelang-operator-dev/resources/operator_template my-operators
 cd my-operators
 claude .
@@ -86,9 +87,9 @@ Example `.mcp.json` with explicit source path:
   "mcpServers": {
     "tilelang-operator-knowledge": {
       "command": "python3",
-      "args": ["/temp/tilelang-operator-dev/scripts/tilelang_operator_mcp.py"],
+      "args": ["<workspace-root>/tilelang-operator-dev/scripts/tilelang_operator_mcp.py"],
       "env": {
-        "TILELANG_SOURCE_PATH": "/temp/tilelang"
+        "TILELANG_SOURCE_PATH": "<workspace-root>/tilelang"
       }
     }
   }
@@ -101,17 +102,19 @@ From the operator workspace:
 
 ```bash
 python init_operator.py --new-operator fused_moe
+python init_operator.py --tilelang-source /absolute/path/to/tilelang --new-operator fused_moe
 python init_operator.py --list
 ```
 
 ## Validate The Setup
 
-From `/temp/tilelang-operator-dev`:
+From `<workspace-root>/tilelang-operator-dev`:
 
 ```bash
 python scripts/tilelang_operator_mcp.py --check
 python -m pytest tests/test_mcp_server.py -q
 python .claude/skills/run-tilelang-mcp/driver.py --smoke
+python scripts/audit_tilelang_knowledge.py --tilelang-source <workspace-root>/tilelang
 ```
 
 From Claude Code, ask:

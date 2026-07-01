@@ -22,11 +22,9 @@
   "category": "Developer Tools",
   "requirements": {
     "python": ">=3.8",
+    "primary_target": "Claude Code",
     "mcp_compatible_tools": [
-      "Claude Code",
-      "OpenAI Codex",
-      "Cursor",
-      "OpenCode"
+      "Claude Code"
     ]
   },
   "mcp_server": {

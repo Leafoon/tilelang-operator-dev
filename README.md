@@ -60,11 +60,13 @@ cd <workspace-root>/tilelang-operator-dev
 bash setup.sh
 ```
 
-This installs:
+This installs or updates:
 
 - Skill: `~/.claude/skills/tilelang-operator-dev/SKILL.md`
 - MCP config: `~/.claude/.mcp.json`
 - MCP server target: `<workspace-root>/tilelang-operator-dev/scripts/tilelang_operator_mcp.py`
+
+If `~/.claude/.mcp.json` already exists, `setup.sh` preserves existing MCP servers and upserts only `tilelang-operator-knowledge`. It also creates a timestamped backup before writing.
 
 The generated MCP config has this shape:
 
@@ -102,7 +104,7 @@ The template includes:
 
 - `.mcp.json`, pointing to `../tilelang-operator-dev/scripts/tilelang_operator_mcp.py`
 - `.claude/skills/tilelang-operator-dev/SKILL.md`, a lightweight Claude Code skill entrypoint
-- `init_operator.py`, for creating operator directories
+- `init_operator.py`, for creating operator directories and validating a nearby, explicit, or `TILELANG_SOURCE_PATH` TileLang checkout
 - `example_operator/`, a starter operator layout
 
 Default workspace MCP config:
@@ -198,9 +200,12 @@ From the `tilelang-operator-dev` repository:
 python -m pytest tests/test_mcp_server.py -q
 python scripts/tilelang_operator_mcp.py --check
 python .claude/skills/run-tilelang-mcp/driver.py --smoke
+python scripts/audit_tilelang_knowledge.py --tilelang-source <workspace-root>/tilelang
 ```
 
 The `run-tilelang-mcp` skill and driver are retained for MCP server development and smoke testing. They are not the default user-facing operator development skill.
+
+The knowledge audit checks JSON/JSONL parsing, source evidence paths, line ranges, and official `examples/` directory coverage against the TileLang checkout you provide.
 
 ## Troubleshooting
 

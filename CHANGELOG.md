@@ -9,10 +9,20 @@ All notable changes to this project will be documented in this file.
 - Updated README and setup guide with professional global and workspace-local Claude Code configuration modes.
 - Replaced the operator template's `run-tilelang-mcp` skill entrypoint with a lightweight `tilelang-operator-dev` entrypoint.
 - Clarified dual-workspace behavior and bundled knowledge-base fallback in the main skill instructions.
+- Made `setup.sh` merge `tilelang-operator-knowledge` into existing Claude Code MCP config instead of overwriting other configured servers.
+- Made `troubleshooting.jsonl` part of the validated knowledge delivery set and local knowledge override path.
+- Updated the operator workspace template to use official TileLang GEMM syntax and tile-aligned tests.
+- Added targeted and index-style knowledge patterns so all first-level official TileLang `examples/` directories have a retrieval entry.
+- Added `scripts/audit_tilelang_knowledge.py` to audit knowledge records against a TileLang source checkout.
 
 ### Fixed
 - Fixed `operator_development_wizard` step 1 auto-validation so it no longer calls a missing function when `workspace_path` is provided.
 - Added a regression test for wizard step 1 with `workspace_path`.
+- Fixed `operator_development_wizard` step 1 auto-validation to preserve explicit `tilelang_source_path`.
+- Fixed `search_troubleshooting` to use workspace-local knowledge when a complete local delivery set is present.
+- Fixed `lookup_apis` ranking for `T.*` and `tl.*` symbol aliases so exact API records rank above docstring-only matches.
+- Reduced false positives in `validate_operator_code` by recognizing `from tilelang import language as T` and limiting anti-pattern checks to TileLang kernel functions.
+- Fixed `resources/operator_template/init_operator.py` to support explicit `--tilelang-source` and `TILELANG_SOURCE_PATH`.
 
 ## [0.4.2] - 2026-06-27
 

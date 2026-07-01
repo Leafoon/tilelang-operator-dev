@@ -16,7 +16,7 @@ Expected sibling layout:
 └── my-operators/
 ```
 
-The workspace `.mcp.json` points to `../tilelang-operator-dev/scripts/tilelang_operator_mcp.py`. The MCP server auto-detects the sibling `tilelang/` repository and uses bundled `resources/tilelang_knowledge/` unless this workspace provides a complete local `tilelang_knowledge/`.
+The workspace `.mcp.json` points to `../tilelang-operator-dev/scripts/tilelang_operator_mcp.py`. The MCP server auto-detects the sibling `tilelang/` repository and uses bundled `resources/tilelang_knowledge/` unless this workspace provides a complete local `tilelang_knowledge/` including troubleshooting records.
 
 ## Required Workflow
 
