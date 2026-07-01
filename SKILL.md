@@ -1,13 +1,18 @@
 ---
 name: tilelang-operator-dev
-description: Use when developing, adapting, explaining, or validating TileLang operators from a validated TileLang workspace and repo-local tilelang_knowledge delivery set, with MCP-backed retrieval and device-aware source fallback.
+description: Use when developing, adapting, explaining, or validating TileLang operators in Claude Code. Supports independent operator workspaces, MCP-backed TileLang knowledge retrieval, bundled or workspace-local tilelang_knowledge, device-aware planning, implementation guidance, troubleshooting, and code validation.
 ---
 
 # TileLang Operator Dev
 
-This skill is the long-lived engineering workflow for TileLang operator development. It must validate the active workspace, retrieve from `tilelang_knowledge/`, and only then generate code, explanations, or validation plans.
+Use this skill for TileLang operator development in Claude Code. The default workflow is:
 
-Default behavior is not "directly write code". Default behavior is: validate, retrieve, then generate.
+1. Validate the operator workspace and TileLang source repository.
+2. Validate the knowledge base.
+3. Retrieve capability, pattern, usage, API, and source evidence.
+4. Generate explanations, implementation plans, operator code, or validation plans.
+
+Do not skip validation and retrieval before generating operator code.
 
 ## Scope
 
@@ -18,9 +23,37 @@ Use this skill for:
 - Reductions, online softmax, RMSNorm, TopK
 - Convolution-like kernels
 - Elementwise and fusion kernels
-- Device-aware TileLang target, layout, schedule, intrinsic, and validation planning
+- Device-aware TileLang target, layout, schedule, intrinsic, validation, and troubleshooting work
 
-Do not use this skill for generic CUDA/Triton development unless the user explicitly wants a TileLang implementation.
+Do not use this skill for generic CUDA or Triton development unless the user explicitly asks for a TileLang implementation.
+
+## Workspace Model
+
+Support both layouts:
+
+- **Single-workspace mode**: the active Claude Code workspace is the TileLang source repository.
+- **Dual-workspace mode**: the active Claude Code workspace contains custom operators, while the TileLang source repository lives elsewhere, commonly as a sibling directory.
+
+Recommended local layout:
+
+```text
+/temp/
+├── tilelang-operator-dev/   # this skill and MCP server
+├── tilelang/                # official TileLang source repository
+└── my-operators/            # independent Claude Code operator workspace
+```
+
+In dual-workspace mode, the active workspace does not need to be the TileLang source repository. The MCP server resolves TileLang source in this order:
+
+1. Explicit `tilelang_source_path` tool argument
+2. `TILELANG_SOURCE_PATH` environment variable
+3. Auto-detected sibling or parent `tilelang/` directory
+4. Active workspace as a backward-compatible fallback
+
+The knowledge base resolves in this order:
+
+1. Workspace-local `tilelang_knowledge/`, if present and complete enough
+2. Bundled `resources/tilelang_knowledge/` from the `tilelang-operator-dev` repository
 
 ## Mandatory MCP-First Validation
 
@@ -30,17 +63,17 @@ At the start of each operator task:
 2. Call `validate_knowledge_base` from `tilelang-operator-knowledge`.
 3. If a device is supplied, call `normalize_device_profile`.
 
-If MCP is unavailable, fall back to direct filesystem checks, but explicitly state that MCP validation was unavailable. The fallback must enforce the same hard-stop rules.
+If MCP is unavailable, fall back to direct filesystem checks and explicitly state that MCP validation was unavailable. The fallback must enforce the same hard-stop rules.
 
 ## Hard Stop Conditions
 
 Stop immediately when:
 
-- The active workspace is not a TileLang repository.
-- `tilelang_knowledge/` is missing.
+- No valid TileLang source repository can be resolved.
+- Neither a valid workspace-local nor bundled `tilelang_knowledge` delivery set is available.
 - Required delivery files are missing.
 - JSON or JSONL parsing fails.
-- The selected operator depends on evidence paths missing from the current repository.
+- The selected operator depends on evidence paths missing from the resolved TileLang source repository.
 
 When stopped, do not generate code and do not continue with inferred context.
 
@@ -53,16 +86,15 @@ Missing or invalid:
 - <specific missing repository indicator, delivery file, parse error, or version mismatch>
 
 Required fix:
-- Place the TileLang repository at the active workspace root.
-- Restore/generate tilelang_knowledge/ with retrieval_plan.md, capability_map.json,
-  patterns.jsonl, usage_patterns.jsonl, apis.jsonl, source_chunks.jsonl,
-  semantic_graph.json, semantic_graph.mmd, manifest.json, and README.md.
+- Ensure a TileLang source repository is available, for example /temp/tilelang.
+- Ensure the Claude Code workspace can load tilelang-operator-knowledge from tilelang-operator-dev.
+- Restore workspace-local tilelang_knowledge/ or bundled resources/tilelang_knowledge/.
 - Re-invoke the tilelang-operator-dev skill.
 ```
 
-## Workspace Acceptance Criteria
+## Acceptance Criteria
 
-A valid TileLang repository must include:
+A valid TileLang source repository must include:
 
 - `tilelang/__init__.py`
 - `tilelang/language/__init__.py`
@@ -71,24 +103,25 @@ A valid TileLang repository must include:
 
 A valid delivery set must include:
 
-- `tilelang_knowledge/retrieval_plan.md`
-- `tilelang_knowledge/capability_map.json`
-- `tilelang_knowledge/patterns.jsonl`
-- `tilelang_knowledge/usage_patterns.jsonl`
-- `tilelang_knowledge/apis.jsonl`
-- `tilelang_knowledge/source_chunks.jsonl`
-- `tilelang_knowledge/semantic_graph.json`
-- `tilelang_knowledge/semantic_graph.mmd`
-- `tilelang_knowledge/manifest.json`
-- `tilelang_knowledge/README.md`
+- `retrieval_plan.md`
+- `capability_map.json`
+- `patterns.jsonl`
+- `usage_patterns.jsonl`
+- `apis.jsonl`
+- `source_chunks.jsonl`
+- `semantic_graph.json`
+- `semantic_graph.mmd`
+- `manifest.json`
+- `README.md`
 
 ## Required Opening Status
 
 When validation passes, begin with a short status:
 
-- TileLang repository identified: `<path>`
-- Knowledge delivery identified: `<path>/tilelang_knowledge`
-- Workspace validation: passed
+- Operator workspace identified: `<path>`
+- TileLang source identified: `<path>`
+- Knowledge delivery identified: `<path>`
+- Workspace mode: `single` or `dual`
 - Retrieval mode: MCP-backed layered knowledge first, source fallback only if needed
 
 ## Standard Workflow
@@ -105,17 +138,15 @@ When validation passes, begin with a short status:
 10. Operator retrieval plan: `build_operator_retrieval_plan`
 11. Implementation, explanation, or validation plan
 12. Code quality validation: `validate_operator_code`
-13. Troubleshooting: `search_troubleshooting` (if errors occur)
+13. Troubleshooting: `search_troubleshooting` when errors occur
 
 Only step 11 may generate final operator code.
 
-## Guided Workflow
-
-For a step-by-step guided experience, use `operator_development_wizard` which walks through all 12 stages of operator development from intent to code validation.
+For a guided experience, use `operator_development_wizard`.
 
 ## Retrieval Order
 
-Follow this order exactly:
+Follow this order:
 
 1. `retrieval_plan.md`
 2. `capability_map.json`
@@ -123,8 +154,8 @@ Follow this order exactly:
 4. `usage_patterns.jsonl`
 5. `apis.jsonl`
 6. `source_chunks.jsonl`
-7. `semantic_graph.json` / `semantic_graph.mmd`
-8. Original repository source, only as final fallback
+7. `semantic_graph.json` or `semantic_graph.mmd`
+8. Original TileLang repository source, only as a final fallback
 
 Even after source fallback, do not ignore constraints already found in the delivery set. If repository source, delivery records, and user requirements conflict, report the conflict explicitly.
 
@@ -184,7 +215,7 @@ Prefer adapting the closest retrieved pattern over inventing a new structure.
 
 When validation is requested or needed:
 
-- Use retrieved usage patterns for compile/run/compare/profile order.
+- Use retrieved usage patterns for compile, run, compare, and profile order.
 - Create tensors on the target-matching runtime device.
 - Use `torch.testing.assert_close` or `Profiler.assert_allclose` when appropriate.
 - Use `kernel.get_kernel_source()` for lowering/codegen inspection.
@@ -220,7 +251,7 @@ For follow-up requests:
 
 ## Confidence Rules
 
-- High confidence: source- or doc-backed in the current workspace.
+- High confidence: source- or doc-backed in the current resolved TileLang source repository.
 - Medium confidence: example/test-backed but not fully documented.
 - Low confidence: inferred, target-specific, version-sensitive, or weakly covered.
 
@@ -230,7 +261,7 @@ Internal APIs must not be presented as public unless `apis.jsonl` marks them pub
 
 - Do not modify TileLang repository source unless the user asks for code changes.
 - Do not regenerate or modify `tilelang_knowledge/` during normal operator development.
-- Do not copy `tilelang_knowledge/` into the plugin.
+- Do not copy the full `tilelang-operator-dev` repository into an operator workspace.
 - MCP tools do not generate final operator code; they only validate, search, normalize, and return evidence.
 - Do not bypass layered retrieval because source files are nearby.
 - Do not continue after a hard precondition failure.

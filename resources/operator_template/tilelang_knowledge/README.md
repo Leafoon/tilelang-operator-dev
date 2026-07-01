@@ -11,7 +11,8 @@ If you want to customize the knowledge base for your specific operators:
 3. Place them in this directory
 
 The MCP server will use the local `tilelang_knowledge/` if it exists,
-otherwise it falls back to the built-in knowledge base.
+is complete enough, and parses cleanly. Otherwise it falls back to the
+built-in knowledge base.
 
 ## Structure
 
@@ -25,7 +26,8 @@ tilelang_knowledge/
 ├── source_chunks.jsonl    # Source code fragments
 ├── semantic_graph.json    # Entity relationship graph
 ├── semantic_graph.mmd     # Mermaid diagram
-└── manifest.json          # Knowledge base manifest
+├── manifest.json          # Knowledge base manifest
+└── README.md              # Knowledge base notes
 ```
 
 ## When to Use

@@ -1231,7 +1231,7 @@ def operator_development_wizard(args: dict[str, Any]) -> dict[str, Any]:
     if current_step == 1 and workspace_path:
         # Auto-run workspace validation
         workspace_result = inspect_workspace({"workspace_path": workspace_path})
-        kb_result = validate_knowledge_base({"workspace_path": workspace_path})
+        kb_result = validate_knowledge({"workspace_path": workspace_path})
         auto_completed.append({
             "step_id": 1,
             "results": {

@@ -57,5 +57,5 @@ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion
 
 - **`python3` on Windows** — the `python3` alias is the Windows Store stub that exits with code 49. Always use `python` on Windows.
 - **Built-in knowledge base** — the server falls back to `resources/tilelang_knowledge/` when the workspace doesn't have its own copy. All 13 tools work from the skill repo without copying anything.
-- **`normalize_device_profile` needs vendor** — passing just `{"model":"H100"}` without `vendor` gives low confidence (0.4). Include `vendor`, `model`, and optionally `target` for best results.
+- **Device normalization** — known models such as H100 can be recognized without an explicit vendor, but include `vendor`, `model`, and optionally `target` for best results on less common hardware.
 - **Server is single-shot** — each invocation processes one batch of JSON-RPC messages from stdin then exits. It's not a long-running server.

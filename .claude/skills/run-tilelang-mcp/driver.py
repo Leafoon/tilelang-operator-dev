@@ -2,7 +2,7 @@
 """Driver for the TileLang MCP server.
 
 Sends JSON-RPC messages to the MCP server over stdio and prints responses.
-Supports a smoke test mode that exercises all 10 tools, or individual tool calls.
+Supports a smoke test mode that exercises all 13 tools, or individual tool calls.
 
 Usage:
   python .claude/skills/run-tilelang-mcp/driver.py --smoke
@@ -201,7 +201,7 @@ def list_tools():
 
 def main():
     parser = argparse.ArgumentParser(description="TileLang MCP server driver")
-    parser.add_argument("--smoke", action="store_true", help="Run smoke test on all 10 tools")
+    parser.add_argument("--smoke", action="store_true", help="Run smoke test on all 13 tools")
     parser.add_argument("--list", action="store_true", help="List available tools")
     parser.add_argument("--call", type=str, help="Call a single tool by name")
     parser.add_argument("--args", type=str, default="{}", help="JSON arguments for --call")

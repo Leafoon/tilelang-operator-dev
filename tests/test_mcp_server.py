@@ -317,6 +317,20 @@ class TestOperatorDevelopmentWizard:
         assert "operator_intent" in result
         assert result["current_step"] == 1
 
+    def test_wizard_step_1_with_workspace_path(self):
+        """Regression: step 1 auto-validation should not call a missing function."""
+        result = get_tool_result("operator_development_wizard", {
+            "current_step": 1,
+            "workspace_path": str(REPO_ROOT),
+        })
+        assert result["status"] in ("in_progress", "completed")
+        assert result["current_step"] == 1
+        assert result["auto_completed"]
+        first = result["auto_completed"][0]
+        assert first["step_id"] == 1
+        assert "workspace" in first["results"]
+        assert "knowledge_base" in first["results"]
+
 
 # --- Dual-workspace mode tests ---
 

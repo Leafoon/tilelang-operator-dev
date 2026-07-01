@@ -1,115 +1,83 @@
-# TileLang Operator Optimization Workspace
+# TileLang Operator Workspace
 
-This directory contains custom TileLang operators developed independently from the TileLang source repository.
+This is an independent Claude Code workspace for custom TileLang operators. It is intended to live next to:
 
-## Directory Structure
-
-```
-operator_optimization/
-├── .mcp.json              # MCP server configuration (only file needed!)
-├── .gitignore             # Git ignore rules
-├── README.md              # This file
-│
-├── fused_moe/             # Each operator has its own directory
-│   ├── operator.py        # Operator implementation
-│   ├── test_operator.py   # Correctness tests
-│   ├── benchmark.py       # Performance benchmarks
-│   └── README.md          # Operator documentation
-│
-├── flash_attention/       # Another operator
-│   └── ...
-│
-└── tilelang_knowledge/    # (Optional) Local knowledge base overrides
-    └── README.md
+```text
+<parent>/
+├── tilelang-operator-dev/      # full skill and MCP repository
+├── tilelang/                   # official TileLang source repository
+└── my-operators/               # this workspace
 ```
 
-## Getting Started
+This workspace does not contain a full copy of `tilelang-operator-dev`. The local `.claude/skills/tilelang-operator-dev/SKILL.md` file is only a lightweight Claude Code entrypoint.
 
-**No configuration needed!** The MCP server automatically detects TileLang source by searching:
+## What Is Included
 
-1. **Sibling directory**: `../tilelang/` (most common)
-2. **Parent's sibling**: `../../tilelang/`
-3. **Up to 3 parent levels**
+- `.mcp.json`: loads `tilelang-operator-knowledge` from `../tilelang-operator-dev/scripts/tilelang_operator_mcp.py`
+- `.claude/skills/tilelang-operator-dev/SKILL.md`: workspace-local Claude Code skill entrypoint
+- `init_operator.py`: creates new operator directories from the example template
+- `example_operator/`: starter layout for implementation, tests, benchmarks, and notes
+- `tilelang_knowledge/README.md`: placeholder for optional local knowledge overrides
 
-### Quick Start
+## Start Claude Code
 
 ```bash
-# 1. Open this directory in Claude Code
+cd my-operators
 claude .
-
-# 2. The server auto-detects TileLang source - just start coding!
-#    Example: "develop a fused MoE operator for NVIDIA H100"
 ```
 
-### Create a New Operator
+The MCP server resolves TileLang source in this order:
+
+1. Explicit `tilelang_source_path` tool argument
+2. `TILELANG_SOURCE_PATH` environment variable
+3. Sibling or parent `tilelang/` directory
+4. Current workspace as a backward-compatible fallback
+
+The knowledge base resolves from workspace-local `tilelang_knowledge/` first, then bundled `../tilelang-operator-dev/resources/tilelang_knowledge/`.
+
+## Create Operators
+
+Create a new operator from the template:
 
 ```bash
-python init_operator.py --new-operator my_new_operator
+python init_operator.py --new-operator fused_moe
 ```
 
-Or manually:
-
-```bash
-mkdir -p my_new_operator
-touch my_new_operator/operator.py
-touch my_new_operator/test_operator.py
-touch my_new_operator/benchmark.py
-touch my_new_operator/README.md
-```
-
-### List Existing Operators
+List existing operators:
 
 ```bash
 python init_operator.py --list
 ```
 
-## Auto-Detection
+Each generated operator directory contains:
 
-The MCP server automatically finds your TileLang source checkout. No `.env` file needed!
+- `operator.py`: TileLang implementation
+- `test_operator.py`: correctness tests
+- `benchmark.py`: performance checks
+- `README.md`: operator-specific notes
 
-**Search priority:**
-1. Explicit `tilelang_source_path` tool parameter (if provided)
-2. `TILELANG_SOURCE_PATH` environment variable (if set)
-3. **Auto-detect**: sibling `tilelang/` directory
-4. **Auto-detect**: walk up to 3 parent levels
-5. Fallback: current workspace (backward compatibility)
+## Expected Claude Code Workflow
 
-**Validation**: Only directories containing `tilelang/__init__.py` are considered valid.
+Ask Claude Code from this workspace. The skill should:
 
-## MCP Tools
+1. Validate the workspace with `inspect_tilelang_workspace`.
+2. Validate the knowledge base with `validate_knowledge_base`.
+3. Normalize hardware details with `normalize_device_profile`.
+4. Search capabilities, patterns, usage records, APIs, and source chunks.
+5. Build a retrieval plan before generating code.
+6. Validate generated code with `validate_operator_code`.
+7. Use `search_troubleshooting` for errors.
 
-When opening this workspace in Claude Code, the following tools are available:
+Example prompts:
 
-- `inspect_tilelang_workspace` - Validate your setup (shows auto-detected path)
-- `search_capabilities` - Find relevant TileLang capabilities
-- `search_patterns` - Look up implementation patterns
-- `lookup_apis` - Check TileLang API signatures
-- `validate_operator_code` - Static analysis of your code
-- `operator_development_wizard` - Step-by-step guidance
-
-## Workflow
-
-1. **Validate setup**: Run `inspect_tilelang_workspace` to confirm everything is configured
-2. **Design**: Search capabilities and patterns for your operator type
-3. **Implement**: Write your operator in `operator.py`
-4. **Test**: Add tests in `test_operator.py`
-5. **Benchmark**: Measure performance in `benchmark.py`
-6. **Document**: Update `README.md` for each operator
-
-## Tips
-
-- Keep each operator focused on a single task
-- Document performance improvements and trade-offs
-- Use `tilelang_knowledge/` to add custom patterns specific to your operators
-- Run the validation wizard after major changes
+- "Develop a grouped GEMM TileLang operator for NVIDIA H100."
+- "Validate this operator and explain why it may fail on A100."
+- "Adapt this kernel for AMD MI300X and show the risks."
 
 ## Troubleshooting
 
-**Q: "TileLang source not found" error**
-A: Make sure `tilelang/` directory exists as a sibling of this workspace (or up to 3 levels above). If it's elsewhere, set `TILELANG_SOURCE_PATH` environment variable.
+If TileLang source is not found, place the official repository at `../tilelang` or set `TILELANG_SOURCE_PATH` in `.mcp.json`.
 
-**Q: Multiple TileLang source candidates found**
-A: Use the `tilelang_source_path` tool parameter to specify which one to use, or set `TILELANG_SOURCE_PATH` environment variable.
+If the MCP server is not found, check that this workspace is next to `tilelang-operator-dev` or update `.mcp.json` to use an absolute path.
 
-**Q: Knowledge base validation fails**
-A: The skill uses built-in knowledge base by default. You can also copy the knowledge base to `tilelang_knowledge/` for local overrides.
+If knowledge validation fails, ensure `../tilelang-operator-dev/resources/tilelang_knowledge/` exists. Only use workspace-local `tilelang_knowledge/` for custom overrides.

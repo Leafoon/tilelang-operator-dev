@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+- Made `tilelang-operator-dev` the default Claude Code operator development skill installed by `setup.sh`.
+- Updated README and setup guide with professional global and workspace-local Claude Code configuration modes.
+- Replaced the operator template's `run-tilelang-mcp` skill entrypoint with a lightweight `tilelang-operator-dev` entrypoint.
+- Clarified dual-workspace behavior and bundled knowledge-base fallback in the main skill instructions.
+
+### Fixed
+- Fixed `operator_development_wizard` step 1 auto-validation so it no longer calls a missing function when `workspace_path` is provided.
+- Added a regression test for wizard step 1 with `workspace_path`.
+
 ## [0.4.2] - 2026-06-27
 
 ### Fixed
