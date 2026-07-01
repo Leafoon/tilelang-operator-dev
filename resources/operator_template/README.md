@@ -13,7 +13,7 @@ This workspace does not contain a full copy of `tilelang-operator-dev`. The loca
 
 ## What Is Included
 
-- `.mcp.json`: loads `tilelang-operator-knowledge` from `../tilelang-operator-dev/scripts/tilelang_operator_mcp.py`
+- `.mcp.json`: loads `tilelang-operator-knowledge` from `${CLAUDE_PROJECT_DIR:-.}/../tilelang-operator-dev/scripts/tilelang_operator_mcp.py`
 - `.claude/skills/tilelang-operator-dev/SKILL.md`: workspace-local Claude Code skill entrypoint
 - `init_operator.py`: creates new operator directories from the example template
 - `example_operator/`: starter layout for implementation, tests, benchmarks, and notes
@@ -78,5 +78,7 @@ Example prompts:
 If TileLang source is not found, place the official repository at `../tilelang` or set `TILELANG_SOURCE_PATH` in `.mcp.json`.
 
 If the MCP server is not found, check that this workspace is next to `tilelang-operator-dev` or update `.mcp.json` to use an absolute path.
+
+If Claude Code reports the project MCP server as pending or rejected, inspect it with `/mcp` inside Claude Code or `claude mcp list` from the shell.
 
 If knowledge validation fails, ensure `../tilelang-operator-dev/resources/tilelang_knowledge/` exists. Only create workspace-local `tilelang_knowledge/` for custom overrides, and copy the complete delivery set before editing it.

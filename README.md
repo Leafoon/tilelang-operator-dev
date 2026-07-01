@@ -97,10 +97,10 @@ Use `PYTHON=/path/to/python3.10 bash setup.sh` if Claude Code should launch the 
 This installs or updates:
 
 - Skill: `~/.claude/skills/tilelang-operator-dev/SKILL.md`
-- MCP config: `~/.claude/.mcp.json`
+- User-scoped MCP config: `~/.claude.json`
 - MCP server target: `<workspace-root>/tilelang-operator-dev/scripts/tilelang_operator_mcp.py`
 
-If `~/.claude/.mcp.json` already exists, `setup.sh` preserves existing MCP servers and upserts only `tilelang-operator-knowledge`. It also creates a timestamped backup before writing.
+If `~/.claude.json` already exists, `setup.sh` preserves existing user-scoped MCP servers and upserts only `tilelang-operator-knowledge`. It also creates a timestamped backup before writing.
 
 The generated MCP config has this shape:
 
@@ -108,8 +108,10 @@ The generated MCP config has this shape:
 {
   "mcpServers": {
     "tilelang-operator-knowledge": {
+      "type": "stdio",
       "command": "python3",
-      "args": ["<workspace-root>/tilelang-operator-dev/scripts/tilelang_operator_mcp.py"]
+      "args": ["<workspace-root>/tilelang-operator-dev/scripts/tilelang_operator_mcp.py"],
+      "env": {}
     }
   }
 }
@@ -121,6 +123,12 @@ After setup, restart Claude Code and open an operator workspace:
 mkdir -p <workspace-root>/my-operators
 cd <workspace-root>/my-operators
 claude .
+```
+
+You can check whether Claude Code sees the user-scoped server with:
+
+```bash
+claude mcp list
 ```
 
 ### Option B: Workspace-Local Configuration
@@ -157,7 +165,7 @@ Default workspace MCP config:
     "tilelang-operator-knowledge": {
       "command": "python3",
       "args": [
-        "${workspaceFolder}/../tilelang-operator-dev/scripts/tilelang_operator_mcp.py"
+        "${CLAUDE_PROJECT_DIR:-.}/../tilelang-operator-dev/scripts/tilelang_operator_mcp.py"
       ]
     }
   }
@@ -165,6 +173,8 @@ Default workspace MCP config:
 ```
 
 This relative path assumes `my-operators` and `tilelang-operator-dev` are siblings. If your directories are arranged differently, replace it with an absolute path.
+
+Project-scoped `.mcp.json` servers may require approval the first time you open the workspace. Use `/mcp` inside Claude Code or `claude mcp list` from the shell to inspect the connection state.
 
 To point the workspace at a non-sibling TileLang checkout, add `TILELANG_SOURCE_PATH` to the MCP server environment or pass `tilelang_source_path` in tool arguments when debugging MCP calls. For normal Claude Code use, the sibling `tilelang/` checkout or the environment variable is the least ambiguous setup.
 

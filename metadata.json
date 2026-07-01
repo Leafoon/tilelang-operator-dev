@@ -1,6 +1,6 @@
 {
   "name": "tilelang-operator-dev",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "MCP-backed TileLang operator development skill with workspace validation and device-aware planning",
   "author": {
     "name": "TileLang Community",

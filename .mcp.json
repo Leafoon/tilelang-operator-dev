@@ -2,7 +2,7 @@
   "mcpServers": {
     "tilelang-operator-knowledge": {
       "command": "python3",
-      "args": ["${workspaceFolder}/scripts/tilelang_operator_mcp.py"],
+      "args": ["${CLAUDE_PROJECT_DIR:-.}/scripts/tilelang_operator_mcp.py"],
       "env": {}
     }
   }

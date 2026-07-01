@@ -31,6 +31,9 @@ Use an explicit Python interpreter when needed:
 PYTHON=/path/to/python3.10 bash setup.sh
 ```
 
+`setup.sh` installs the skill to `~/.claude/skills/tilelang-operator-dev/SKILL.md`
+and upserts the user-scoped MCP server in `~/.claude.json`.
+
 ## Workspace-Local Setup
 
 ```bash

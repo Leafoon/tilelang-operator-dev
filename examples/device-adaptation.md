@@ -33,6 +33,12 @@ Call: normalize_device_profile(vendor="Intel", model="Xeon")
 Result: vendor=CPU, suggested_target="llvm", confidence=0.8
 ```
 
+### AMD CPU
+```
+Call: normalize_device_profile(vendor="AMD", model="EPYC")
+Result: vendor=CPU, suggested_target="llvm", confidence=0.8
+```
+
 ## Device-Specific Fields
 
 The skill uses these fields from knowledge base records:

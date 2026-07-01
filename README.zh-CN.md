@@ -97,10 +97,10 @@ bash setup.sh
 该脚本会安装或更新：
 
 - Skill：`~/.claude/skills/tilelang-operator-dev/SKILL.md`
-- MCP 配置：`~/.claude/.mcp.json`
+- 用户级 MCP 配置：`~/.claude.json`
 - MCP 服务目标：`<workspace-root>/tilelang-operator-dev/scripts/tilelang_operator_mcp.py`
 
-如果 `~/.claude/.mcp.json` 已存在，`setup.sh` 会保留已有 MCP server，只更新 `tilelang-operator-knowledge`，并在写入前创建带时间戳的备份。
+如果 `~/.claude.json` 已存在，`setup.sh` 会保留已有用户级 MCP server，只更新 `tilelang-operator-knowledge`，并在写入前创建带时间戳的备份。
 
 生成的 MCP 配置形态如下：
 
@@ -108,8 +108,10 @@ bash setup.sh
 {
   "mcpServers": {
     "tilelang-operator-knowledge": {
+      "type": "stdio",
       "command": "python3",
-      "args": ["<workspace-root>/tilelang-operator-dev/scripts/tilelang_operator_mcp.py"]
+      "args": ["<workspace-root>/tilelang-operator-dev/scripts/tilelang_operator_mcp.py"],
+      "env": {}
     }
   }
 }
@@ -121,6 +123,12 @@ bash setup.sh
 mkdir -p <workspace-root>/my-operators
 cd <workspace-root>/my-operators
 claude .
+```
+
+可以用下面的命令确认 Claude Code 是否识别到用户级 MCP server：
+
+```bash
+claude mcp list
 ```
 
 ### 方案 B：工作区本地配置
@@ -157,7 +165,7 @@ python init_operator.py --new-operator fused_moe_gemm
     "tilelang-operator-knowledge": {
       "command": "python3",
       "args": [
-        "${workspaceFolder}/../tilelang-operator-dev/scripts/tilelang_operator_mcp.py"
+        "${CLAUDE_PROJECT_DIR:-.}/../tilelang-operator-dev/scripts/tilelang_operator_mcp.py"
       ]
     }
   }
@@ -165,6 +173,8 @@ python init_operator.py --new-operator fused_moe_gemm
 ```
 
 这个相对路径假设 `my-operators` 和 `tilelang-operator-dev` 是同级目录。如果你的目录结构不同，请改成绝对路径。
+
+项目级 `.mcp.json` server 在首次打开工作区时可能需要批准。可以在 Claude Code 内使用 `/mcp`，或在 shell 中运行 `claude mcp list` 查看连接状态。
 
 如果 TileLang 官方仓库不在同级 `tilelang/` 目录下，可以在 MCP 配置中设置 `TILELANG_SOURCE_PATH`，或在调试 MCP 工具时显式传入 `tilelang_source_path`。日常 Claude Code 使用中，同级 `tilelang/` 或环境变量是最不容易产生歧义的配置方式。
 

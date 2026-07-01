@@ -3,7 +3,7 @@
     "tilelang-operator-knowledge": {
       "command": "python3",
       "args": [
-        "${workspaceFolder}/../tilelang-operator-dev/scripts/tilelang_operator_mcp.py"
+        "${CLAUDE_PROJECT_DIR:-.}/../tilelang-operator-dev/scripts/tilelang_operator_mcp.py"
       ]
     }
   }

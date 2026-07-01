@@ -9,6 +9,8 @@ All notable changes to this project will be documented in this file.
 - Added English troubleshooting fields to `troubleshooting.jsonl` and exposed them through `search_troubleshooting`.
 - Added a troubleshooting record for unsupported or unverified accelerator vendor targets.
 - Added source evidence auditing to `validate_knowledge_base` when a valid TileLang checkout is resolved.
+- Added usage records for split-K GEMM, sparse GEMM, flash/decode attention, convolution autotune, elementwise, top-k, and fused MoE pattern links.
+- Added audit checks for `patterns.jsonl` references to missing `usage_patterns.jsonl` IDs.
 
 ### Changed
 - Expanded English and Chinese README usage guidance with Claude Code startup commands, global and workspace-local setup flows, prompt structures, and expected Skill behavior.
@@ -16,11 +18,16 @@ All notable changes to this project will be documented in this file.
 - Added `validate_operator_code` warnings for unverified vendor targets such as CANN, MUSA, MACA, MLU, and XPU.
 - Included workspace/source/knowledge trace fields directly in `build_operator_retrieval_plan` output.
 - Reduced `SETUP_GUIDE.md` duplication so README remains the authoritative setup and usage guide.
+- Updated project and template MCP configs to use `${CLAUDE_PROJECT_DIR:-.}` instead of the unsupported `${workspaceFolder}` variable.
+- Updated `setup.sh` to upsert the user-scoped MCP server in `~/.claude.json`.
 
 ### Fixed
 - Kept `build_operator_retrieval_plan` constrained whenever device normalization is constrained.
 - Clarified `get_source_chunks` tool wording so it does not imply live source-file reads.
 - Made the operator template tests skip cleanly when PyTorch or CUDA is unavailable.
+- Kept `validate_knowledge_base` and `build_operator_retrieval_plan` from reporting success when TileLang source cannot be resolved.
+- Fixed CPU device normalization for Intel Xeon and AMD EPYC so CPU requests are not routed to unknown or HIP targets.
+- Updated stale examples to match dual-workspace and bundled-knowledge behavior.
 
 ## [0.4.3] - 2026-07-01
 

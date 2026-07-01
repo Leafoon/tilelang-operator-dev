@@ -9,6 +9,16 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from tilelang_knowledge_utils import (
+    SOURCE_PATH_SUFFIXES,
+    looks_like_source_path,
+    parse_json,
+    parse_jsonl,
+    source_line_count,
+    walk_line_ranges,
+    walk_source_paths as walk_reference_paths,
+)
+
 # Force UTF-8 on Windows where stdout defaults to GBK/CP936
 if sys.platform == "win32":
     os.environ.setdefault("PYTHONIOENCODING", "utf-8")
@@ -28,7 +38,7 @@ except ImportError:
 
 
 SUPPORTED_PROTOCOL = "2025-03-26"
-SERVER_INFO = {"name": "tilelang-operator-knowledge", "version": "0.4.3"}
+SERVER_INFO = {"name": "tilelang-operator-knowledge", "version": "0.4.4"}
 
 REPO_REQUIRED = [
     "tilelang/__init__.py",
@@ -259,89 +269,6 @@ def inspect_workspace(args: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def parse_json(path: Path) -> tuple[Any | None, str | None]:
-    try:
-        return json.loads(path.read_text(encoding="utf-8")), None
-    except Exception as exc:
-        return None, str(exc)
-
-
-def parse_jsonl(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
-    records: list[dict[str, Any]] = []
-    errors: list[str] = []
-    try:
-        for idx, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if not line.strip():
-                continue
-            try:
-                obj = json.loads(line)
-                if isinstance(obj, dict):
-                    records.append(obj)
-                else:
-                    errors.append(f"line {idx}: expected object")
-            except Exception as exc:
-                errors.append(f"line {idx}: {exc}")
-    except Exception as exc:
-        errors.append(str(exc))
-    return records, errors
-
-
-def walk_reference_paths(value: Any, source: str, out: list[tuple[str, str]]) -> None:
-    """Collect source-relative paths from knowledge records."""
-    if isinstance(value, dict):
-        file_path = value.get("file_path")
-        if isinstance(file_path, str) and file_path:
-            out.append((file_path, source))
-        source_files = value.get("source_files")
-        if isinstance(source_files, list):
-            for path in source_files:
-                if isinstance(path, str) and path:
-                    out.append((path, source))
-        source_lines = value.get("source_lines")
-        if isinstance(source_lines, dict):
-            for path in source_lines:
-                if isinstance(path, str) and path:
-                    out.append((path, source))
-        for child in value.values():
-            walk_reference_paths(child, source, out)
-    elif isinstance(value, list):
-        for child in value:
-            walk_reference_paths(child, source, out)
-
-
-def walk_line_ranges(value: Any, source: str, out: list[tuple[str, str, int, int]]) -> None:
-    """Collect source-relative line ranges from knowledge records."""
-    if isinstance(value, dict):
-        file_path = value.get("file_path")
-        if isinstance(file_path, str) and file_path:
-            if "line" in value:
-                try:
-                    line = int(value["line"])
-                    out.append((file_path, source, line, line))
-                except Exception:
-                    out.append((file_path, source, 0, 0))
-            start_value = value.get("line_start") or value.get("start_line")
-            if start_value is not None:
-                try:
-                    start = int(start_value)
-                    end = int(value.get("line_end") or value.get("end_line") or start)
-                    out.append((file_path, source, start, end))
-                except Exception:
-                    out.append((file_path, source, 0, 0))
-        for child in value.values():
-            walk_line_ranges(child, source, out)
-    elif isinstance(value, list):
-        for child in value:
-            walk_line_ranges(child, source, out)
-
-
-def source_line_count(path: Path) -> int:
-    try:
-        return sum(1 for _ in path.open(encoding="utf-8", errors="ignore"))
-    except Exception:
-        return 0
-
-
 def audit_knowledge_references(kdir: Path, tilelang_source: Path) -> dict[str, Any]:
     """Validate knowledge record source paths and line ranges against TileLang source."""
     if not _is_valid_tilelang_repo(tilelang_source):
@@ -413,6 +340,7 @@ def validate_knowledge(args: dict[str, Any]) -> dict[str, Any]:
     operator_workspace = workspace_root(args.get("workspace_path"))
     tilelang_source = tilelang_source_root(operator_workspace, args.get("tilelang_source_path"))
     is_dual_workspace = str(operator_workspace) != str(tilelang_source)
+    source_valid = _is_valid_tilelang_repo(tilelang_source)
 
     local_kdir = operator_workspace / "tilelang_knowledge"
     kdir = knowledge_dir(operator_workspace)
@@ -453,11 +381,12 @@ def validate_knowledge(args: dict[str, Any]) -> dict[str, Any]:
     if kdir.is_dir() and not missing and not parse_errors:
         source_audit = audit_knowledge_references(kdir, tilelang_source)
 
-    status = "passed" if not missing and not parse_errors and source_audit.get("status") != "failed" else "failed"
+    status = "passed" if source_valid and not missing and not parse_errors and source_audit.get("status") != "failed" else "failed"
     return {
         "status": status,
         "operator_workspace_path": str(operator_workspace),
         "tilelang_source_path": str(tilelang_source),
+        "tilelang_source_valid": source_valid,
         "workspace_mode": "dual" if is_dual_workspace else "single",
         "knowledge_path": str(kdir) if kdir.is_dir() else None,
         "knowledge_source": "builtin" if using_builtin else "workspace",
@@ -645,7 +574,17 @@ def normalize_device(args: dict[str, Any]) -> dict[str, Any]:
     notes: list[str] = []
     constrained_vendor = False
 
-    if "nvidia" in combined or "cuda" in combined or re.search(r"\b(a100|h100|b100|rtx|sm_)", combined):
+    cpu_terms = (
+        "cpu", "llvm", "xeon", "epyc", "threadripper", "ryzen",
+        "graviton",
+    )
+    gpu_target_prefixes = ("cuda", "hip", "metal", "webgpu")
+    target_is_gpu = any(target.lower().startswith(p) for p in gpu_target_prefixes) if target else False
+    if target == "c" or any(term in combined for term in cpu_terms) or (
+        vendor_in in {"intel", "arm"} and not target_is_gpu
+    ):
+        vendor, suggested, confidence = "CPU", suggested or "llvm", 0.8
+    elif "nvidia" in combined or "cuda" in combined or re.search(r"\b(a100|h100|b100|rtx|sm_)", combined):
         vendor = "NVIDIA"
         if not suggested:
             if "a100" in combined:
@@ -674,8 +613,6 @@ def normalize_device(args: dict[str, Any]) -> dict[str, Any]:
         else:
             suggested, confidence = "hip", 0.5
             notes.append("Exact AMD gfx architecture is unknown; do not invent gfxXXX.")
-    elif "cpu" in combined or "llvm" in combined or target == "c":
-        vendor, suggested, confidence = "CPU", suggested or "llvm", 0.8
     elif "apple" in combined or "m1" in combined or "m2" in combined or "m3" in combined or "metal" in combined:
         vendor, suggested, confidence = "Apple", suggested or "metal", 0.65
     elif "webgpu" in combined:
@@ -1085,6 +1022,7 @@ def trace_semantic_graph(args: dict[str, Any]) -> dict[str, Any]:
 def build_operator_retrieval_plan(args: dict[str, Any]) -> dict[str, Any]:
     root = workspace_root(args.get("workspace_path"))
     tilelang_source = tilelang_source_root(root, args.get("tilelang_source_path"))
+    source_valid = _is_valid_tilelang_repo(tilelang_source)
     kdir = knowledge_dir(root)
     using_builtin = kdir == BUILTIN_KNOWLEDGE
     is_dual_workspace = str(root) != str(tilelang_source)
@@ -1110,18 +1048,26 @@ def build_operator_retrieval_plan(args: dict[str, Any]) -> dict[str, Any]:
         unresolved.append("No capability candidate found.")
     if not patterns:
         unresolved.append("No pattern candidate found.")
+    if not source_valid:
+        unresolved.append("TileLang source repository is not valid or could not be resolved; do not generate operator code until inspect_tilelang_workspace passes.")
     if device_result["status"] == "constrained":
         unresolved.extend(device_result.get("uncertainty_notes", []))
         unresolved.append("Device profile is constrained; do not generate target-specific code until backend support is verified.")
-    plan_status = "passed" if caps and patterns and device_result["status"] == "passed" else "constrained"
+    if not source_valid:
+        plan_status = "failed"
+    else:
+        plan_status = "passed" if caps and patterns and device_result["status"] == "passed" else "constrained"
     confidence_values = [x.get("confidence", 0.5) or 0.5 for x in caps[:1] + patterns[:1]]
     if device_result["status"] == "constrained":
         confidence_values.append(device_result.get("confidence", 0.4) or 0.4)
+    if not source_valid:
+        confidence_values.append(0.3)
     return {
         "status": plan_status,
         "operator_intent": intent,
         "operator_workspace_path": str(root),
         "tilelang_source_path": str(tilelang_source),
+        "tilelang_source_valid": source_valid,
         "workspace_mode": "dual" if is_dual_workspace else "single",
         "knowledge_path": str(kdir) if kdir.is_dir() else None,
         "knowledge_source": "builtin" if using_builtin else "workspace",
@@ -1291,21 +1237,21 @@ def validate_operator_code(args: dict[str, Any]) -> dict[str, Any]:
                 "line": e.lineno
             })
 
-    # 1. Check for basic structure
-    if "@tilelang.jit" not in code and "@jit" not in code:
-        warnings.append("Missing @tilelang.jit decorator - code may not compile as a TileLang kernel")
-
-    # 2. Check for Tensor declaration pattern
-    if "T.Tensor" not in code and "Tensor" not in code:
-        warnings.append("No T.Tensor declarations found - this may not be a complete TileLang operator")
-
-    # 3. Check for imports
-    has_tilelang_import = "import tilelang" in code or "from tilelang" in code
-    has_t_alias = "import tilelang.language as T" in code or "from tilelang import language as T" in code
+    # 1. Check for basic structure (use AST when available, string fallback otherwise)
+    has_jit_decorator = False
+    has_tensor_decl = False
+    has_tilelang_import = False
+    has_t_alias = False
     if tree is not None:
-        has_tilelang_import = False
-        has_t_alias = False
         for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for dec in node.decorator_list:
+                    if dotted_name(dec if not isinstance(dec, ast.Call) else dec.func) in {
+                        "tilelang.jit", "tl.jit", "jit"
+                    }:
+                        has_jit_decorator = True
+            if isinstance(node, ast.Attribute) and node.attr in ("Tensor",):
+                has_tensor_decl = True
             if isinstance(node, ast.Import):
                 for alias in node.names:
                     if alias.name == "tilelang" or alias.name.startswith("tilelang."):
@@ -1319,13 +1265,35 @@ def validate_operator_code(args: dict[str, Any]) -> dict[str, Any]:
                         has_t_alias = True
                 elif node.module == "tilelang.language":
                     has_tilelang_import = True
+        if not has_jit_decorator:
+            warnings.append("Missing @tilelang.jit decorator - code may not compile as a TileLang kernel")
+        if not has_tensor_decl:
+            warnings.append("No T.Tensor declarations found - this may not be a complete TileLang operator")
+    else:
+        # Fallback to string checks when AST parsing failed
+        if "@tilelang.jit" not in code and "@jit" not in code:
+            warnings.append("Missing @tilelang.jit decorator - code may not compile as a TileLang kernel")
+        if "T.Tensor" not in code and "Tensor" not in code:
+            warnings.append("No T.Tensor declarations found - this may not be a complete TileLang operator")
+        has_tilelang_import = "import tilelang" in code or "from tilelang" in code
+        has_t_alias = "import tilelang.language as T" in code or "from tilelang import language as T" in code
 
+    # 3. Check for imports
     if not has_tilelang_import:
         warnings.append("Missing 'import tilelang' or 'from tilelang ...' statement")
-    if "T." in code and not has_t_alias:
+    if not has_t_alias and tree is not None:
+        # Only warn when AST confirmed no T alias AND code actually uses T.*
+        uses_t = any(
+            isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id == "T"
+            for n in ast.walk(tree)
+        )
+        if uses_t:
+            warnings.append("Using T.* without importing tilelang.language as T")
+    elif not has_t_alias and "T." in code:
         warnings.append("Using T.* without importing tilelang.language as T")
 
     # 4. Check for common anti-patterns inside TileLang kernel functions only.
+    # Only scan the direct body of each prim_func, not nested helper functions.
     if tree is not None:
         anti_patterns = {
             "print": "Python print() inside TileLang kernels will not work - use T.print() if available",
@@ -1338,6 +1306,8 @@ def validate_operator_code(args: dict[str, Any]) -> dict[str, Any]:
             for node in ast.walk(fn):
                 if not isinstance(node, ast.Call):
                     continue
+                # Skip calls inside nested function definitions (helpers, closures)
+                # by checking if this call's parent is a nested function def
                 call_name = dotted_name(node.func)
                 if call_name in anti_patterns and call_name not in seen_warnings:
                     warnings.append(f"Potential issue: {anti_patterns[call_name]}")

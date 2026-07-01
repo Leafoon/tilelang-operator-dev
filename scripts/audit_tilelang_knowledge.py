@@ -8,93 +8,20 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from tilelang_knowledge_utils import (
+    SOURCE_PATH_SUFFIXES,
+    looks_like_source_path,
+    parse_json as read_json,
+    parse_jsonl as read_jsonl,
+    source_line_count as line_count,
+    walk_line_ranges,
+    walk_source_paths as walk_paths,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_KNOWLEDGE_DIR = REPO_ROOT / "resources" / "tilelang_knowledge"
 JSON_FILES = ["capability_map.json", "semantic_graph.json", "manifest.json"]
 JSONL_FILES = ["patterns.jsonl", "usage_patterns.jsonl", "apis.jsonl", "source_chunks.jsonl", "troubleshooting.jsonl"]
-
-
-def read_json(path: Path) -> tuple[Any | None, str | None]:
-    try:
-        return json.loads(path.read_text(encoding="utf-8")), None
-    except Exception as exc:
-        return None, str(exc)
-
-
-def read_jsonl(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
-    records: list[dict[str, Any]] = []
-    errors: list[str] = []
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except Exception as exc:
-        return [], [str(exc)]
-    for lineno, line in enumerate(lines, 1):
-        if not line.strip():
-            continue
-        try:
-            obj = json.loads(line)
-            if isinstance(obj, dict):
-                records.append(obj)
-            else:
-                errors.append(f"{path.name}:{lineno}: record is not an object")
-        except Exception as exc:
-            errors.append(f"{path.name}:{lineno}: {exc}")
-    return records, errors
-
-
-def walk_paths(value: Any, source: str, out: list[tuple[str, str]]) -> None:
-    if isinstance(value, dict):
-        file_path = value.get("file_path")
-        if isinstance(file_path, str) and file_path:
-            out.append((file_path, source))
-        source_files = value.get("source_files")
-        if isinstance(source_files, list):
-            for path in source_files:
-                if isinstance(path, str) and path:
-                    out.append((path, source))
-        source_lines = value.get("source_lines")
-        if isinstance(source_lines, dict):
-            for path in source_lines:
-                if isinstance(path, str) and path:
-                    out.append((path, source))
-        for child in value.values():
-            walk_paths(child, source, out)
-    elif isinstance(value, list):
-        for child in value:
-            walk_paths(child, source, out)
-
-
-def walk_line_ranges(value: Any, source: str, out: list[tuple[str, str, int, int]]) -> None:
-    if isinstance(value, dict):
-        file_path = value.get("file_path")
-        if isinstance(file_path, str) and file_path:
-            if "line" in value:
-                try:
-                    line = int(value["line"])
-                    out.append((file_path, source, line, line))
-                except Exception:
-                    out.append((file_path, source, 0, 0))
-            start_value = value.get("line_start") or value.get("start_line")
-            if start_value is not None:
-                try:
-                    start = int(start_value)
-                    end = int(value.get("line_end") or value.get("end_line") or start)
-                    out.append((file_path, source, start, end))
-                except Exception:
-                    out.append((file_path, source, 0, 0))
-        for child in value.values():
-            walk_line_ranges(child, source, out)
-    elif isinstance(value, list):
-        for child in value:
-            walk_line_ranges(child, source, out)
-
-
-def line_count(path: Path) -> int:
-    try:
-        return sum(1 for _ in path.open(encoding="utf-8", errors="ignore"))
-    except Exception:
-        return 0
 
 
 def audit(tilelang_source: Path, knowledge_dir: Path) -> dict[str, Any]:
@@ -114,11 +41,13 @@ def audit(tilelang_source: Path, knowledge_dir: Path) -> dict[str, Any]:
         walk_line_ranges(obj, name, line_ranges)
 
     jsonl_counts: dict[str, int] = {}
+    jsonl_records: dict[str, list[dict[str, Any]]] = {}
     for name in JSONL_FILES:
         path = knowledge_dir / name
         if not path.exists():
             continue
         records, errors = read_jsonl(path)
+        jsonl_records[name] = records
         jsonl_counts[name] = len(records)
         if errors:
             parse_errors[name] = errors
@@ -160,7 +89,25 @@ def audit(tilelang_source: Path, knowledge_dir: Path) -> dict[str, Any]:
     covered_examples = sorted(set(official_examples) & raw_covered_examples)
     missing_example_dirs = sorted(set(official_examples) - set(covered_examples))
 
-    status = "passed" if not parse_errors and not missing_refs and not line_issues else "failed"
+    usage_ids = {
+        rec.get("usage_id")
+        for rec in jsonl_records.get("usage_patterns.jsonl", [])
+        if isinstance(rec.get("usage_id"), str)
+    }
+    missing_usage_refs = []
+    for index, record in enumerate(jsonl_records.get("patterns.jsonl", []), 1):
+        related = record.get("related_usage_patterns") or []
+        if not isinstance(related, list):
+            continue
+        for usage_id in related:
+            if isinstance(usage_id, str) and usage_id not in usage_ids:
+                missing_usage_refs.append({
+                    "pattern_id": record.get("pattern_id"),
+                    "usage_id": usage_id,
+                    "source": f"patterns.jsonl:{index}",
+                })
+
+    status = "passed" if not parse_errors and not missing_refs and not line_issues and not missing_usage_refs else "failed"
     return {
         "status": status,
         "tilelang_source": str(tilelang_source),
@@ -171,6 +118,8 @@ def audit(tilelang_source: Path, knowledge_dir: Path) -> dict[str, Any]:
         "missing_references": missing_refs[:100],
         "line_issue_count": len(line_issues),
         "line_issues": line_issues[:100],
+        "missing_usage_reference_count": len(missing_usage_refs),
+        "missing_usage_references": missing_usage_refs[:100],
         "parse_errors": parse_errors,
         "example_coverage": {
             "official_dir_count": len(official_examples),
@@ -204,6 +153,7 @@ def main() -> int:
         print(f"Referenced paths: {result['referenced_path_count']}")
         print(f"Missing references: {result['missing_reference_count']}")
         print(f"Line issues: {result['line_issue_count']}")
+        print(f"Missing usage references: {result['missing_usage_reference_count']}")
         print(f"Example coverage: {coverage['covered_dir_count']}/{coverage['official_dir_count']} directories")
         if coverage["missing_dirs"]:
             print("Missing example directories:")

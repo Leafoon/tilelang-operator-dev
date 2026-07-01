@@ -16,6 +16,17 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MCP_SERVER = REPO_ROOT / "scripts" / "tilelang_operator_mcp.py"
 
 
+def make_minimal_tilelang_source(root: Path) -> Path:
+    """Create a minimal source checkout accepted by workspace validation."""
+    source = root / "tilelang-source"
+    (source / "tilelang" / "language").mkdir(parents=True)
+    (source / "tilelang" / "__init__.py").write_text("", encoding="utf-8")
+    (source / "tilelang" / "language" / "__init__.py").write_text("", encoding="utf-8")
+    (source / "src" / "transform").mkdir(parents=True)
+    (source / "docs").mkdir()
+    return source
+
+
 def run_mcp(*messages: dict) -> list[dict]:
     """Send JSON-RPC messages to the MCP server and return parsed responses."""
     init = {
@@ -143,6 +154,18 @@ class TestDeviceNormalization:
         result = get_tool_result("normalize_device_profile", {"vendor": "cpu", "model": "Xeon"})
         assert result["vendor"] == "CPU"
 
+    def test_intel_xeon_is_cpu(self):
+        result = get_tool_result("normalize_device_profile", {"vendor": "Intel", "model": "Xeon"})
+        assert result["status"] == "passed"
+        assert result["vendor"] == "CPU"
+        assert result["suggested_target"] == "llvm"
+
+    def test_amd_epyc_is_cpu_not_hip(self):
+        result = get_tool_result("normalize_device_profile", {"vendor": "AMD", "model": "EPYC"})
+        assert result["status"] == "passed"
+        assert result["vendor"] == "CPU"
+        assert result["suggested_target"] == "llvm"
+
     def test_unknown_device(self):
         result = get_tool_result("normalize_device_profile", {"vendor": "unknown", "model": "unknown"})
         assert result["status"] == "constrained"
@@ -172,6 +195,18 @@ class TestDeviceNormalization:
         assert result["suggested_target"] is None
         assert result["confidence"] <= 0.4
         assert any("no verified backend evidence" in note for note in result["uncertainty_notes"])
+
+    def test_intel_with_cuda_target_is_not_cpu(self):
+        """Regression: Intel + CUDA target should not be misclassified as CPU."""
+        result = get_tool_result("normalize_device_profile", {"vendor": "Intel", "target": "cuda"})
+        assert result["vendor"] == "NVIDIA"
+        assert result["status"] == "passed"
+
+    def test_arm_with_hip_target_is_not_cpu(self):
+        """Regression: ARM + HIP target should not be misclassified as CPU."""
+        result = get_tool_result("normalize_device_profile", {"vendor": "ARM", "target": "hip"})
+        assert result["vendor"] == "AMD"
+        assert result["status"] == "passed"
 
     def test_other_accelerator_explicit_target_remains_constrained(self):
         result = get_tool_result("normalize_device_profile", {
@@ -317,29 +352,45 @@ class TestTraceSemanticGraph:
 
 
 class TestBuildOperatorRetrievalPlan:
-    def test_basic_plan(self):
+    def test_basic_plan(self, tmp_path):
+        source = make_minimal_tilelang_source(tmp_path)
         result = get_tool_result("build_operator_retrieval_plan", {
             "operator_intent": "basic GEMM kernel for H100",
             "device_profile": {"vendor": "nvidia", "model": "H100", "target": "cuda"},
+            "tilelang_source_path": str(source),
         })
-        assert result["status"] in ("passed", "constrained")
+        assert result["status"] == "passed"
         assert len(result["capability_candidates"]) > 0
         assert len(result["pattern_candidates"]) > 0
         assert result["device_profile"]["vendor"] == "NVIDIA"
+        assert result["tilelang_source_valid"] is True
         assert "operator_workspace_path" in result
         assert "tilelang_source_path" in result
         assert "workspace_mode" in result
         assert "knowledge_path" in result
         assert "knowledge_source" in result
 
-    def test_constrained_device_keeps_plan_constrained(self):
+    def test_constrained_device_keeps_plan_constrained(self, tmp_path):
+        source = make_minimal_tilelang_source(tmp_path)
         result = get_tool_result("build_operator_retrieval_plan", {
             "operator_intent": "basic GEMM for Huawei Ascend 910B",
             "device_profile": {"vendor": "Huawei", "model": "Ascend 910B", "target": "cann"},
+            "tilelang_source_path": str(source),
         })
         assert result["status"] == "constrained"
         assert result["device_profile"]["status"] == "constrained"
+        assert result["tilelang_source_valid"] is True
         assert any("Device profile is constrained" in q for q in result["unresolved_questions"])
+
+    def test_invalid_tilelang_source_keeps_plan_failed(self, tmp_path):
+        result = get_tool_result("build_operator_retrieval_plan", {
+            "workspace_path": str(tmp_path / "operators"),
+            "operator_intent": "basic GEMM kernel for H100",
+            "device_profile": {"vendor": "nvidia", "model": "H100"},
+        })
+        assert result["status"] == "failed"
+        assert result["tilelang_source_valid"] is False
+        assert any("TileLang source repository is not valid" in q for q in result["unresolved_questions"])
 
 
 # --- Error handling ---
@@ -607,8 +658,46 @@ class TestKnowledgeAuditScript:
         assert result["line_issue_count"] == 1
         assert result["line_issues"][0]["file_path"] == "examples/gemm/example.py"
 
+    def test_audit_fails_on_missing_related_usage_pattern(self, tmp_path):
+        source = tmp_path / "tilelang"
+        knowledge = tmp_path / "tilelang_knowledge"
+        (source / "examples").mkdir(parents=True)
+        knowledge.mkdir()
+        (knowledge / "patterns.jsonl").write_text(json.dumps({
+            "pattern_id": "pattern.bad-usage",
+            "related_usage_patterns": ["usage.missing"],
+        }) + "\n", encoding="utf-8")
+        (knowledge / "usage_patterns.jsonl").write_text("", encoding="utf-8")
+
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(REPO_ROOT / "scripts" / "audit_tilelang_knowledge.py"),
+                "--tilelang-source",
+                str(source),
+                "--knowledge-dir",
+                str(knowledge),
+                "--json",
+            ],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+        )
+        result = json.loads(proc.stdout)
+        assert proc.returncode == 1
+        assert result["status"] == "failed"
+        assert result["missing_usage_reference_count"] == 1
+        assert result["missing_usage_references"][0]["usage_id"] == "usage.missing"
+
 
 class TestKnowledgeBaseSourceAudit:
+    def test_validate_knowledge_base_fails_without_valid_source(self, tmp_path):
+        result = get_tool_result("validate_knowledge_base", {
+            "workspace_path": str(tmp_path / "operators"),
+        })
+        assert result["status"] == "failed"
+        assert result["tilelang_source_valid"] is False
+
     def test_validate_knowledge_base_fails_on_missing_source_evidence(self, tmp_path):
         workspace = tmp_path / "operators"
         source = tmp_path / "tilelang-source"
@@ -695,16 +784,31 @@ class TestOperatorDevelopmentWizard:
 
 
 class TestSetupScript:
+    def test_project_mcp_configs_use_claude_project_dir(self):
+        config_paths = [
+            REPO_ROOT / ".mcp.json",
+            REPO_ROOT / "resources" / ".mcp.json",
+            REPO_ROOT / "resources" / ".mcp.windows.json",
+            REPO_ROOT / "resources" / "operator_template" / ".mcp.json",
+        ]
+        for path in config_paths:
+            text = path.read_text(encoding="utf-8")
+            assert "${workspaceFolder}" not in text
+            assert "${CLAUDE_PROJECT_DIR:-.}" in text
+            json.loads(text)
+
     def test_setup_merges_existing_mcp_config(self, tmp_path):
         home = tmp_path / "home"
         claude_dir = home / ".claude"
         claude_dir.mkdir(parents=True)
-        config_path = claude_dir / ".mcp.json"
+        config_path = home / ".claude.json"
         config_path.write_text(json.dumps({
             "mcpServers": {
                 "existing-server": {
+                    "type": "stdio",
                     "command": "existing",
                     "args": ["keep-me"],
+                    "env": {},
                 }
             },
             "otherConfig": True,
@@ -726,12 +830,14 @@ class TestSetupScript:
         assert merged["otherConfig"] is True
         assert "existing-server" in merged["mcpServers"]
         assert "tilelang-operator-knowledge" in merged["mcpServers"]
+        assert merged["mcpServers"]["tilelang-operator-knowledge"]["type"] == "stdio"
         assert merged["mcpServers"]["tilelang-operator-knowledge"]["command"] == "python3"
         assert merged["mcpServers"]["tilelang-operator-knowledge"]["args"] == [
             str(REPO_ROOT / "scripts" / "tilelang_operator_mcp.py")
         ]
+        assert merged["mcpServers"]["tilelang-operator-knowledge"]["env"] == {}
         assert (home / ".claude" / "skills" / "tilelang-operator-dev" / "SKILL.md").is_file()
-        assert list(claude_dir.glob(".mcp.json.bak.*"))
+        assert list(home.glob(".claude.json.bak.*"))
 
     def test_setup_uses_configured_python_command(self, tmp_path):
         home = tmp_path / "home"
@@ -748,7 +854,7 @@ class TestSetupScript:
             check=True,
         )
 
-        config_path = home / ".claude" / ".mcp.json"
+        config_path = home / ".claude.json"
         merged = json.loads(config_path.read_text(encoding="utf-8"))
         assert merged["mcpServers"]["tilelang-operator-knowledge"]["command"] == sys.executable
 

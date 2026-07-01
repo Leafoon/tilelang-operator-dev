@@ -11,13 +11,13 @@ This example shows how to use the skill to develop a basic GEMM operator.
 1. **Workspace Validation**
    ```
    Call: inspect_tilelang_workspace
-   Result: status=passed, is_tilelang_repo=true
+   Result: status=passed, workspace_mode=dual or single, is_tilelang_repo=true
    ```
 
 2. **Knowledge Validation**
    ```
    Call: validate_knowledge_base
-   Result: status=passed, counts={patterns.jsonl: 42, apis.jsonl: 156}
+   Result: status=passed, knowledge_source=builtin or workspace, counts={patterns.jsonl: 24, usage_patterns.jsonl: 23, apis.jsonl: 290}
    ```
 
 3. **Device Normalization**
@@ -35,7 +35,7 @@ This example shows how to use the skill to develop a basic GEMM operator.
 5. **Pattern Search**
    ```
    Call: search_patterns(query="GEMM", capability_id="gemm_like_patterns")
-   Result: pattern_id="basic_gemm_pattern"
+   Result: pattern_id="pattern.gemm.basic_tiled"
    ```
 
 6. **API Lookup**
@@ -51,7 +51,7 @@ This example shows how to use the skill to develop a basic GEMM operator.
 ```markdown
 ## Workspace Check
 - TileLang repository: /path/to/tilelang
-- Knowledge base: /path/to/tilelang/tilelang_knowledge
+- Knowledge base: /path/to/tilelang-operator-dev/resources/tilelang_knowledge
 - Validation: passed
 
 ## Operator Intent
@@ -60,7 +60,7 @@ This example shows how to use the skill to develop a basic GEMM operator.
 
 ## Retrieval Trace
 - capability_id: gemm_like_patterns
-- pattern_id: basic_gemm_pattern
+- pattern_id: pattern.gemm.basic_tiled
 - confidence: high
 
 ## Implementation

@@ -9,7 +9,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILL_NAME="tilelang-operator-dev"
 MCP_SERVER="$SCRIPT_DIR/scripts/tilelang_operator_mcp.py"
-MCP_CONFIG="$HOME/.claude/.mcp.json"
+MCP_CONFIG="$HOME/.claude.json"
 PYTHON_BIN="${PYTHON:-python3}"
 
 "$PYTHON_BIN" - <<'PY'
@@ -28,12 +28,13 @@ PY
 mkdir -p "$HOME/.claude/skills/$SKILL_NAME"
 cp "$SCRIPT_DIR/SKILL.md" "$HOME/.claude/skills/$SKILL_NAME/SKILL.md"
 
-# Upsert MCP config globally without deleting other configured servers.
+# Upsert user-scoped MCP config without deleting other configured servers.
 mkdir -p "$HOME/.claude"
 MCP_CONFIG="$MCP_CONFIG" MCP_SERVER="$MCP_SERVER" MCP_COMMAND="$PYTHON_BIN" "$PYTHON_BIN" <<'PY'
 import json
 import os
 import shutil
+import sys
 import time
 from pathlib import Path
 
@@ -52,16 +53,24 @@ if config_path.exists():
         data = json.loads(config_path.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
             data = {}
-    except json.JSONDecodeError:
-        data = {"_previous_config_backup": str(backup_path)}
+    except json.JSONDecodeError as exc:
+        print(
+            f"Error: {config_path} is not valid JSON ({exc}).\n"
+            f"A backup was saved to: {backup_path}\n"
+            f"Please fix or delete the file and re-run setup.sh.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 mcp_servers = data.get("mcpServers")
 if not isinstance(mcp_servers, dict):
     mcp_servers = {}
 data["mcpServers"] = mcp_servers
 mcp_servers[server_name] = {
+    "type": "stdio",
     "command": mcp_command,
     "args": [mcp_server],
+    "env": {},
 }
 
 tmp_path = config_path.with_suffix(config_path.suffix + ".tmp")
@@ -71,7 +80,7 @@ PY
 
 echo "Done!"
 echo "  Skill:     ~/.claude/skills/$SKILL_NAME/SKILL.md"
-echo "  MCP config: ~/.claude/.mcp.json"
+echo "  MCP config: ~/.claude.json"
 echo "  MCP server: $MCP_SERVER"
 echo "  Python:    $PYTHON_BIN"
 echo ""
