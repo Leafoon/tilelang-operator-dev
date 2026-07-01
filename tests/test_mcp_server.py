@@ -4,7 +4,7 @@ Run with: python -m pytest tests/test_mcp_server.py -v
 """
 import json
 import os
-import py_compile
+import ast
 import shutil
 import subprocess
 import sys
@@ -196,6 +196,17 @@ class TestSearchPatterns:
         assert result["status"] == "passed"
         assert len(result["results"]) == 0
 
+    def test_capability_id_filter_uses_capability_related_patterns(self):
+        """capability_id should resolve through capability_map.related_patterns."""
+        result = get_tool_result("search_patterns", {
+            "query": "gemm",
+            "capability_id": "gemm_like_patterns",
+            "max_results": 8,
+        })
+        assert result["status"] == "passed"
+        ids = {r["pattern_id"] for r in result["results"]}
+        assert "pattern.gemm.basic_tiled" in ids
+
     def test_official_example_coverage_patterns(self):
         cases = [
             ("sm100 tcgen05 tma", "pattern.gemm.sm100_tcgen05_tma_ws"),
@@ -276,6 +287,7 @@ class TestBuildOperatorRetrievalPlan:
         })
         assert result["status"] in ("passed", "constrained")
         assert len(result["capability_candidates"]) > 0
+        assert len(result["pattern_candidates"]) > 0
         assert result["device_profile"]["vendor"] == "NVIDIA"
 
 
@@ -402,7 +414,36 @@ class TestOperatorTemplate:
             template_root / "example_operator" / "test_operator.py",
             template_root / "example_operator" / "benchmark.py",
         ]:
-            py_compile.compile(str(path), doraise=True)
+            ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+
+    def test_template_omits_default_local_knowledge_override(self):
+        template_root = REPO_ROOT / "resources" / "operator_template"
+        assert not (template_root / "tilelang_knowledge").exists()
+
+    def test_template_has_no_local_cache_artifacts(self):
+        template_root = REPO_ROOT / "resources" / "operator_template"
+        disallowed = {".DS_Store", "__pycache__"}
+        offenders = [
+            path.relative_to(template_root)
+            for path in template_root.rglob("*")
+            if path.name in disallowed or path.suffix == ".pyc"
+        ]
+        assert offenders == []
+
+    def test_example_operator_readme_uses_package_safe_commands(self):
+        readme = (REPO_ROOT / "resources" / "operator_template" / "example_operator" / "README.md").read_text(encoding="utf-8")
+        assert "from operator import" not in readme
+        assert "python benchmark.py" not in readme
+        assert "python -m example_operator.benchmark" in readme
+
+
+class TestSkillEntrypoints:
+    def test_operator_skill_entrypoints_are_in_sync(self):
+        root_skill = (REPO_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        repo_local_skill = (REPO_ROOT / ".claude" / "skills" / "tilelang-operator-dev" / "SKILL.md").read_text(encoding="utf-8")
+        template_skill = (REPO_ROOT / "resources" / "operator_template" / ".claude" / "skills" / "tilelang-operator-dev" / "SKILL.md").read_text(encoding="utf-8")
+        assert repo_local_skill == root_skill
+        assert template_skill == root_skill
 
 
 class TestKnowledgeAuditScript:
@@ -454,6 +495,37 @@ class TestKnowledgeAuditScript:
         assert "gemm" in result["example_coverage"]["covered_dirs"]
         assert "quickstart.py" not in result["example_coverage"]["covered_dirs"]
         assert "attention" in result["example_coverage"]["missing_dirs"]
+
+    def test_audit_validates_nested_evidence_line_numbers(self, tmp_path):
+        source = tmp_path / "tilelang"
+        knowledge = tmp_path / "tilelang_knowledge"
+        (source / "examples" / "gemm").mkdir(parents=True)
+        (source / "examples" / "gemm" / "example.py").write_text("print('ok')\n", encoding="utf-8")
+        knowledge.mkdir()
+        (knowledge / "patterns.jsonl").write_text(json.dumps({
+            "pattern_id": "pattern.bad-line",
+            "evidence": [{"file_path": "examples/gemm/example.py", "line": 99}],
+        }) + "\n", encoding="utf-8")
+
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(REPO_ROOT / "scripts" / "audit_tilelang_knowledge.py"),
+                "--tilelang-source",
+                str(source),
+                "--knowledge-dir",
+                str(knowledge),
+                "--json",
+            ],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+        )
+        result = json.loads(proc.stdout)
+        assert proc.returncode == 1
+        assert result["status"] == "failed"
+        assert result["line_issue_count"] == 1
+        assert result["line_issues"][0]["file_path"] == "examples/gemm/example.py"
 
 
 class TestOperatorDevelopmentWizard:

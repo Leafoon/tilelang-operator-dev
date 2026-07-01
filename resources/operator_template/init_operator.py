@@ -95,7 +95,11 @@ def create_new_operator(name: str, workspace: Path) -> bool:
         print(f"❌ Template directory not found: {template_dir}")
         return False
 
-    shutil.copytree(template_dir, operator_dir)
+    shutil.copytree(
+        template_dir,
+        operator_dir,
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store"),
+    )
     print(f"✅ Created operator: {operator_dir}")
     return True
 

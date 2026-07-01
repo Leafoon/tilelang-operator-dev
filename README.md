@@ -34,7 +34,7 @@ claude .
 
 ## Prerequisites
 
-- Python 3.8+
+- Python 3.10+
 - Claude Code
 - A local checkout of the official TileLang repository
 
@@ -107,6 +107,8 @@ The template includes:
 - `init_operator.py`, for creating operator directories and validating a nearby, explicit, or `TILELANG_SOURCE_PATH` TileLang checkout
 - `example_operator/`, a starter operator layout
 
+The template does not include `tilelang_knowledge/`. Claude Code normally uses the bundled knowledge base from `tilelang-operator-dev`; create a workspace-local `tilelang_knowledge/` only for a complete custom override.
+
 Default workspace MCP config:
 
 ```json
@@ -168,7 +170,7 @@ Example prompts:
 | `validate_knowledge_base` | Validate required delivery files and parse JSON/JSONL records |
 | `normalize_device_profile` | Normalize vendor/model/target information |
 | `search_capabilities` | Find matching operator capability categories |
-| `search_patterns` | Retrieve reusable implementation patterns |
+| `search_patterns` | Retrieve reusable implementation patterns; `capability_id` filters through `capability_map.related_patterns` |
 | `search_usage_patterns` | Retrieve compile, run, compare, and profile workflows |
 | `lookup_apis` | Confirm TileLang API signatures, modules, and visibility |
 | `get_source_chunks` | Retrieve focused source fallback chunks |

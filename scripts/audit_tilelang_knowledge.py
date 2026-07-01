@@ -65,6 +65,31 @@ def walk_paths(value: Any, source: str, out: list[tuple[str, str]]) -> None:
             walk_paths(child, source, out)
 
 
+def walk_line_ranges(value: Any, source: str, out: list[tuple[str, str, int, int]]) -> None:
+    if isinstance(value, dict):
+        file_path = value.get("file_path")
+        if isinstance(file_path, str) and file_path:
+            if "line" in value:
+                try:
+                    line = int(value["line"])
+                    out.append((file_path, source, line, line))
+                except Exception:
+                    out.append((file_path, source, 0, 0))
+            start_value = value.get("line_start") or value.get("start_line")
+            if start_value is not None:
+                try:
+                    start = int(start_value)
+                    end = int(value.get("line_end") or value.get("end_line") or start)
+                    out.append((file_path, source, start, end))
+                except Exception:
+                    out.append((file_path, source, 0, 0))
+        for child in value.values():
+            walk_line_ranges(child, source, out)
+    elif isinstance(value, list):
+        for child in value:
+            walk_line_ranges(child, source, out)
+
+
 def line_count(path: Path) -> int:
     try:
         return sum(1 for _ in path.open(encoding="utf-8", errors="ignore"))
@@ -86,6 +111,7 @@ def audit(tilelang_source: Path, knowledge_dir: Path) -> dict[str, Any]:
             parse_errors[name] = [err]
             continue
         walk_paths(obj, name, referenced_paths)
+        walk_line_ranges(obj, name, line_ranges)
 
     jsonl_counts: dict[str, int] = {}
     for name in JSONL_FILES:
@@ -100,11 +126,7 @@ def audit(tilelang_source: Path, knowledge_dir: Path) -> dict[str, Any]:
         for index, record in enumerate(records, 1):
             source = f"{name}:{index}"
             walk_paths(record, source, referenced_paths)
-            file_path = record.get("file_path")
-            if isinstance(file_path, str) and file_path:
-                start = int(record.get("line_start") or record.get("start_line") or 1)
-                end = int(record.get("line_end") or record.get("end_line") or start)
-                line_ranges.append((file_path, source, start, end))
+            walk_line_ranges(record, source, line_ranges)
 
     unique_paths = sorted({path for path, _ in referenced_paths})
     missing_refs = [

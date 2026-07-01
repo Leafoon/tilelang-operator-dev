@@ -34,7 +34,7 @@ claude .
 
 ## 前置条件
 
-- Python 3.8+
+- Python 3.10+
 - Claude Code
 - TileLang 官方源码仓库的本地 checkout
 
@@ -107,6 +107,8 @@ claude .
 - `init_operator.py`，用于创建算子目录，并校验附近、显式指定或 `TILELANG_SOURCE_PATH` 指向的 TileLang 源码仓库
 - `example_operator/`，算子起始模板
 
+模板不包含 `tilelang_knowledge/`。Claude Code 通常使用 `tilelang-operator-dev` 内置知识库；只有需要完整自定义覆盖时，才创建工作区本地 `tilelang_knowledge/`。
+
 默认工作区 MCP 配置：
 
 ```json
@@ -168,7 +170,7 @@ MCP 服务按以下顺序解析 TileLang 源码仓库：
 | `validate_knowledge_base` | 验证交付文件并解析 JSON/JSONL 记录 |
 | `normalize_device_profile` | 规范化厂商、型号和目标后端 |
 | `search_capabilities` | 查找匹配的算子能力类别 |
-| `search_patterns` | 检索可复用实现模式 |
+| `search_patterns` | 检索可复用实现模式；`capability_id` 会通过 `capability_map.related_patterns` 过滤 |
 | `search_usage_patterns` | 检索编译、运行、比对和性能测试流程 |
 | `lookup_apis` | 确认 TileLang API 签名、模块和可见性 |
 | `get_source_chunks` | 获取聚焦的源码回退片段 |

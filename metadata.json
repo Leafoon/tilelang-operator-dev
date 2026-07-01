@@ -1,6 +1,6 @@
 {
   "name": "tilelang-operator-dev",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "MCP-backed TileLang operator development skill with workspace validation and device-aware planning",
   "author": {
     "name": "TileLang Community",
@@ -21,7 +21,7 @@
   ],
   "category": "Developer Tools",
   "requirements": {
-    "python": ">=3.8",
+    "python": ">=3.10",
     "primary_target": "Claude Code",
     "mcp_compatible_tools": [
       "Claude Code"

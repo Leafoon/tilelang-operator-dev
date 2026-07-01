@@ -28,7 +28,7 @@ except ImportError:
 
 
 SUPPORTED_PROTOCOL = "2025-03-26"
-SERVER_INFO = {"name": "tilelang-operator-knowledge", "version": "0.4.2"}
+SERVER_INFO = {"name": "tilelang-operator-knowledge", "version": "0.4.3"}
 
 REPO_REQUIRED = [
     "tilelang/__init__.py",
@@ -617,12 +617,34 @@ def search_capabilities(args: dict[str, Any]) -> dict[str, Any]:
     return {"status": "passed", "results": results}
 
 
+def capability_related_pattern_ids(root: Path, capability_id: str) -> list[str] | None:
+    """Return the curated pattern IDs linked from a capability record."""
+    if not capability_id:
+        return None
+    cap_doc = load_json(root, "capability_map.json")
+    records = cap_doc.get("capabilities", [])
+    if not isinstance(records, list):
+        return []
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        if normalize_text(rec.get("capability_id")) != capability_id:
+            continue
+        related = rec.get("related_patterns") or []
+        if not isinstance(related, list):
+            return []
+        return [normalize_text(pattern_id) for pattern_id in related if normalize_text(pattern_id)]
+    return []
+
+
 def search_patterns(args: dict[str, Any]) -> dict[str, Any]:
     root = workspace_root(args.get("workspace_path"))
     query = normalize_text(args.get("query"))
     category = normalize_text(args.get("category")).lower()
     task_family = normalize_text(args.get("task_family")).lower()
     capability_id = normalize_text(args.get("capability_id"))
+    related_pattern_ids = capability_related_pattern_ids(root, capability_id)
+    related_pattern_set = set(related_pattern_ids or [])
     records = load_jsonl(root, "patterns.jsonl")
     scored = []
     for rec in records:
@@ -630,17 +652,19 @@ def search_patterns(args: dict[str, Any]) -> dict[str, Any]:
             continue
         if task_family and task_family not in normalize_text(rec.get("task_family")).lower():
             continue
-        hay = normalize_text(rec)
-        if capability_id and capability_id not in hay:
+        pattern_id = normalize_text(rec.get("pattern_id"))
+        if capability_id and pattern_id not in related_pattern_set:
             continue
         score, match_details = score_record(rec, query + " " + capability_id, ["pattern_id", "pattern_name", "category", "task_family", "summary", "required_symbols", "related_usage_patterns", "device_strategy"])
+        if capability_id:
+            score += 3.0
 
         # Build match reason
         match_reasons = []
         if match_details.get("explanation"):
             match_reasons.append(match_details["explanation"])
-        if capability_id and capability_id in hay:
-            match_reasons.append(f"Filtered by capability_id: {capability_id}")
+        if capability_id:
+            match_reasons.append(f"Filtered by capability_id via capability_map.related_patterns: {capability_id}")
         if category:
             match_reasons.append(f"Filtered by category: {category}")
         if task_family:
@@ -652,7 +676,7 @@ def search_patterns(args: dict[str, Any]) -> dict[str, Any]:
         rec_with_match["_matched_terms"] = match_details.get("matched_terms", [])
         rec_with_match["_matched_fields"] = match_details.get("matched_fields", [])
 
-        if score > 0 or not query:
+        if score > 0 or not query or capability_id:
             scored.append((score, rec_with_match))
     scored.sort(key=lambda x: (x[0], x[1].get("confidence", 0)), reverse=True)
     results = []

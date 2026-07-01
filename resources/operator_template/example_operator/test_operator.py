@@ -1,7 +1,21 @@
 """Test suite for the example operator template."""
+import importlib.util
+from pathlib import Path
+
 import torch
 
-from .operator import example_matrix_multiply
+try:
+    from .operator import example_matrix_multiply
+except ImportError:
+    spec = importlib.util.spec_from_file_location(
+        "example_operator_impl",
+        Path(__file__).with_name("operator.py"),
+    )
+    if spec is None or spec.loader is None:
+        raise
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    example_matrix_multiply = module.example_matrix_multiply
 
 
 def _run_case(M: int, N: int, K: int) -> None:

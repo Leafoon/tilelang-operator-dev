@@ -1,9 +1,11 @@
 ---
 name: run-tilelang-mcp
-description: Run, test, and verify the TileLang MCP server. Smoke-test all 13 tools, call individual tools, list available tools. Use when testing or debugging the tilelang-operator-dev skill's MCP server.
+description: Internal development utility for the tilelang-operator-dev repository. Use only when explicitly smoke-testing, listing, or debugging the tilelang-operator-knowledge MCP server; do not use for normal TileLang operator development.
 ---
 
 # Run TileLang MCP Server
+
+This is a repository maintenance skill, not the user-facing TileLang operator development skill. For operator design, implementation, adaptation, explanation, or validation, use `tilelang-operator-dev`.
 
 The TileLang MCP server (`scripts/tilelang_operator_mcp.py`) is a stdio-based JSON-RPC server that provides 13 tools for TileLang operator development: workspace validation, knowledge base validation, device normalization, capability/pattern/usage search, API lookup, source chunk retrieval, semantic graph tracing, retrieval plan building, troubleshooting search, code validation, and development wizard.
 
@@ -11,7 +13,7 @@ The TileLang MCP server (`scripts/tilelang_operator_mcp.py`) is a stdio-based JS
 
 ## Prerequisites
 
-- Python 3.8+ (use `python`, not `python3` on Windows — the `python3` alias is the Windows Store stub)
+- Python 3.10+ (use `python`, not `python3` on Windows — the `python3` alias is the Windows Store stub)
 - No external dependencies — pure stdlib
 
 ## Smoke Test

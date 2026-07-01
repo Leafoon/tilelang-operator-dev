@@ -13,7 +13,7 @@ from `tilelang-operator-knowledge` before adding target-specific features.
 
 ```python
 import torch
-from operator import example_matrix_multiply
+from example_operator.operator import example_matrix_multiply
 
 M, N, K = 512, 512, 512
 A = torch.randn(M, K, device="cuda")
@@ -44,14 +44,14 @@ kernel(A, B, C)
 
 Run the tests:
 ```bash
-python -m pytest test_operator.py -v
+python -m pytest example_operator/test_operator.py -v
 ```
 
 ## Benchmark Results
 
 Run the benchmarks:
 ```bash
-python benchmark.py
+python -m example_operator.benchmark
 ```
 
 ## Optimization Opportunities

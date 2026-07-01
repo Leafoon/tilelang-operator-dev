@@ -17,7 +17,6 @@ This workspace does not contain a full copy of `tilelang-operator-dev`. The loca
 - `.claude/skills/tilelang-operator-dev/SKILL.md`: workspace-local Claude Code skill entrypoint
 - `init_operator.py`: creates new operator directories from the example template
 - `example_operator/`: starter layout for implementation, tests, benchmarks, and notes
-- `tilelang_knowledge/README.md`: placeholder for optional local knowledge overrides
 
 ## Start Claude Code
 
@@ -33,7 +32,7 @@ The MCP server resolves TileLang source in this order:
 3. Sibling or parent `tilelang/` directory
 4. Current workspace as a backward-compatible fallback
 
-The knowledge base resolves from workspace-local `tilelang_knowledge/` first, then bundled `../tilelang-operator-dev/resources/tilelang_knowledge/`.
+The knowledge base resolves from workspace-local `tilelang_knowledge/` first, then bundled `../tilelang-operator-dev/resources/tilelang_knowledge/`. This template does not create a local `tilelang_knowledge/` directory; add one only when you intentionally need a complete local override.
 
 ## Create Operators
 
@@ -80,4 +79,4 @@ If TileLang source is not found, place the official repository at `../tilelang` 
 
 If the MCP server is not found, check that this workspace is next to `tilelang-operator-dev` or update `.mcp.json` to use an absolute path.
 
-If knowledge validation fails, ensure `../tilelang-operator-dev/resources/tilelang_knowledge/` exists. Only use workspace-local `tilelang_knowledge/` for custom overrides.
+If knowledge validation fails, ensure `../tilelang-operator-dev/resources/tilelang_knowledge/` exists. Only create workspace-local `tilelang_knowledge/` for custom overrides, and copy the complete delivery set before editing it.
