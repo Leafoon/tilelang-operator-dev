@@ -70,6 +70,8 @@ Before generating operator code, report:
 
 Normalize device information before selecting target-specific patterns or intrinsics. Do not invent `sm_XX` or `gfxXXX`.
 
+For Huawei Ascend, MetaX/Muxi, Moore Threads, Cambricon, Biren, Iluvatar, Kunlun, or other accelerator vendors, recognize the vendor as constrained and do not infer CANN, MUSA, MACA, MLU, or other vendor targets without local TileLang backend evidence.
+
 Verify WGMMA, TCGEN05, TMA, `cp.async`, MFMA, LDS, TMEM, `cluster_dims`, `is_cpu=True`, and backend-specific validation behavior against retrieved records and source/API evidence before recommending them.
 
 ## Implementation Style

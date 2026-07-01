@@ -10,7 +10,7 @@ TileLang Operator Dev 是面向 Claude Code 的 TileLang 算子开发 Skill 与 
 - **MCP 服务**：`tilelang-operator-knowledge`，提供 13 个工具，用于工作区验证、知识检索、开发规划、故障排查和静态代码检查。
 - **独立算子工作区**：自定义算子可以放在 TileLang 源码仓库之外。
 - **内置知识库**：默认使用 `resources/tilelang_knowledge/`，也支持工作区本地覆盖。
-- **设备感知流程**：在选择特定硬件实现模式前，先规范化 NVIDIA、AMD、CPU、Apple Silicon 和 WebGPU 目标。
+- **设备感知流程**：在选择特定硬件实现模式前，先规范化 NVIDIA、AMD、CPU、Apple Silicon 和 WebGPU 目标；其他加速器厂商在缺少后端证据时只标记为受限。
 
 ## 推荐目录结构
 
@@ -191,8 +191,12 @@ MCP 服务按以下顺序解析 TileLang 源码仓库：
 | CPU | `llvm` 或 `c` | 支持路径明确时为高 |
 | Apple Silicon | `metal` | 需验证仓库支持，默认中等 |
 | WebGPU | `webgpu` | 需验证仓库支持，低到中等 |
+| 华为昇腾 | 不从 TileLang 主仓库自动推断目标；只有提供外部 `tilelang-ascend` 仓库或等价后端/编译证据时，才保留用户指定 target | 提供外部后端证据前为受限 |
+| 其他加速器厂商：沐曦、摩尔线程、寒武纪、壁仞、天数智芯、昆仑芯 | 不自动推断目标；只有用户提供的 target 且有源码和编译证据时才保留使用 | 受限 |
 
 WGMMA、TCGEN05、TMA、`cp.async`、MFMA、LDS、TMEM、`cluster_dims` 和 `is_cpu=True` 等架构相关特性，必须先通过检索到的知识记录和源码/API 证据确认，再进行推荐。
+
+对于华为昇腾、沐曦、摩尔线程、寒武纪、壁仞、天数智芯、昆仑芯或其他加速器厂商，Skill 可以识别厂商类别，但不能在缺少本地 TileLang backend、compiler、runtime 和示例证据时臆造 CANN、MUSA、MACA、MLU、XPU 或其他厂商 target。TileLang 主仓库 README 提到昇腾支持位于 `tilelang-ascend` 外部仓库；开发昇腾专用算子时，应把该仓库作为源码证据输入。
 
 ## 验证
 

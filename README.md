@@ -10,7 +10,7 @@ TileLang Operator Dev is a Claude Code skill and MCP server for building TileLan
 - **MCP server**: `tilelang-operator-knowledge` with 13 tools for workspace validation, knowledge retrieval, planning, troubleshooting, and static code checks.
 - **Independent operator workspaces**: keep custom operators outside the TileLang source tree.
 - **Bundled knowledge base**: use `resources/tilelang_knowledge/` by default, with optional workspace-local overrides.
-- **Device-aware planning**: normalize NVIDIA, AMD, CPU, Apple Silicon, and WebGPU targets before selecting target-specific patterns.
+- **Device-aware planning**: normalize NVIDIA, AMD, CPU, Apple Silicon, and WebGPU targets before selecting target-specific patterns; recognize other accelerator vendors as constrained until backend evidence is available.
 
 ## Recommended Directory Layout
 
@@ -191,8 +191,12 @@ Example prompts:
 | CPU | `llvm` or `c` | High for supported CPU paths |
 | Apple Silicon | `metal` | Medium, verify repository support |
 | WebGPU | `webgpu` | Low to medium, verify repository support |
+| Huawei Ascend | No target is inferred from the main TileLang checkout. Preserve user-supplied targets only when backed by the external `tilelang-ascend` checkout or equivalent backend/compiler evidence. | Constrained until external backend evidence is provided |
+| Other accelerator vendors: MetaX/Muxi, Moore Threads, Cambricon, Biren, Iluvatar, Kunlun | No target is inferred. Preserve only user-supplied targets when backed by source and compiler evidence. | Constrained |
 
 Architecture-specific features such as WGMMA, TCGEN05, TMA, `cp.async`, MFMA, LDS, TMEM, `cluster_dims`, and `is_cpu=True` must be verified against retrieved knowledge and source/API evidence before they are recommended.
+
+For Huawei Ascend, MetaX/Muxi, Moore Threads, Cambricon, Biren, Iluvatar, Kunlun, or other accelerator vendors, the skill can identify the vendor family but must not invent CANN, MUSA, MACA, MLU, XPU, or other vendor targets without local TileLang backend, compiler, runtime, and example evidence. The main TileLang README references Ascend support through `tilelang-ascend`; use that repository as source evidence when working on Ascend-specific operators.
 
 ## Validation
 

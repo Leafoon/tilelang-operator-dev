@@ -4,25 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+- Added constrained recognition for Huawei Ascend, MetaX/Muxi, Moore Threads, Cambricon, Biren, Iluvatar, and Baidu Kunlun device profiles.
+- Added English troubleshooting fields to `troubleshooting.jsonl` and exposed them through `search_troubleshooting`.
+- Added a troubleshooting record for unsupported or unverified accelerator vendor targets.
+
+### Changed
+- Clarified in README and Skill instructions that non-CUDA/HIP/CPU/Metal/WebGPU accelerator targets must not be inferred without local TileLang backend evidence, with Huawei Ascend requiring external `tilelang-ascend` evidence when using the main TileLang checkout.
+- Added `validate_operator_code` warnings for unverified vendor targets such as CANN, MUSA, MACA, MLU, and XPU.
+
+## [0.4.3] - 2026-07-01
+
 ### Changed
 - Made `tilelang-operator-dev` the default Claude Code operator development skill installed by `setup.sh`.
 - Updated README and setup guide with professional global and workspace-local Claude Code configuration modes.
 - Replaced the operator template's `run-tilelang-mcp` skill entrypoint with a lightweight `tilelang-operator-dev` entrypoint.
 - Clarified dual-workspace behavior and bundled knowledge-base fallback in the main skill instructions.
 - Made `setup.sh` merge `tilelang-operator-knowledge` into existing Claude Code MCP config instead of overwriting other configured servers.
+- Made `setup.sh` require Python 3.10+ and honor `PYTHON=/path/to/python3.10` when writing MCP config.
 - Made `troubleshooting.jsonl` part of the validated knowledge delivery set and local knowledge override path.
 - Updated the operator workspace template to use official TileLang GEMM syntax and tile-aligned tests.
+- Removed the default workspace-local `tilelang_knowledge/` placeholder from the operator template; bundled knowledge is the default.
+- Synced root, repository-local, and template-local `tilelang-operator-dev` skill entrypoints.
 - Added targeted and index-style knowledge patterns so all first-level official TileLang `examples/` directories have a retrieval entry.
 - Added `scripts/audit_tilelang_knowledge.py` to audit knowledge records against a TileLang source checkout.
+- Updated MCP tool descriptions and evaluation docs to reflect bundled knowledge fallback and capability-to-pattern filtering.
 
 ### Fixed
 - Fixed `operator_development_wizard` step 1 auto-validation so it no longer calls a missing function when `workspace_path` is provided.
 - Added a regression test for wizard step 1 with `workspace_path`.
 - Fixed `operator_development_wizard` step 1 auto-validation to preserve explicit `tilelang_source_path`.
+- Fixed `search_patterns(capability_id=...)` to resolve pattern IDs through `capability_map.related_patterns`.
+- Fixed `build_operator_retrieval_plan` so common GEMM intents return pattern candidates.
 - Fixed `search_troubleshooting` to use workspace-local knowledge when a complete local delivery set is present.
 - Fixed `lookup_apis` ranking for `T.*` and `tl.*` symbol aliases so exact API records rank above docstring-only matches.
 - Reduced false positives in `validate_operator_code` by recognizing `from tilelang import language as T` and limiting anti-pattern checks to TileLang kernel functions.
 - Fixed `resources/operator_template/init_operator.py` to support explicit `--tilelang-source` and `TILELANG_SOURCE_PATH`.
+- Fixed template examples and `init_operator.py` copying to avoid Python stdlib `operator` import confusion and local cache artifacts.
+- Extended the knowledge audit script to validate nested `evidence[].line` entries.
 
 ## [0.4.2] - 2026-06-27
 

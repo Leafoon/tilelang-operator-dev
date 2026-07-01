@@ -6,9 +6,9 @@
 - **Input**: Workspace with `tilelang/__init__.py`, `src/transform/`, `examples/`
 - **Expected**: `inspect_tilelang_workspace` returns `status=passed`
 
-### Test 2: Missing tilelang_knowledge
+### Test 2: Missing Workspace-Local tilelang_knowledge With Bundled Fallback
 - **Input**: Valid TileLang repo without `tilelang_knowledge/`
-- **Expected**: `inspect_tilelang_workspace` returns `status=failed`, `missing_knowledge_files` populated
+- **Expected**: `inspect_tilelang_workspace` returns `status=passed`, `knowledge_source=builtin`, and `missing_knowledge_files=[]`
 
 ### Test 3: Not a TileLang Repository
 - **Input**: Random directory without TileLang indicators
@@ -17,14 +17,14 @@
 ## Knowledge Base Validation Tests
 
 ### Test 4: Valid Knowledge Base
-- **Input**: Workspace with complete `tilelang_knowledge/`
+- **Input**: Workspace with bundled knowledge or complete workspace-local `tilelang_knowledge/`
 - **Expected**: `validate_knowledge_base` returns `status=passed`, counts populated
 
-### Test 5: Missing Files
+### Test 5: Incomplete Workspace-Local Knowledge Falls Back
 - **Input**: `tilelang_knowledge/` missing `patterns.jsonl`
-- **Expected**: `validate_knowledge_base` returns `status=failed`, `missing_files` includes `tilelang_knowledge/patterns.jsonl`
+- **Expected**: `validate_knowledge_base` uses bundled knowledge when available and returns `status=passed`, `knowledge_source=builtin`
 
-### Test 6: Parse Error
+### Test 6: Parse Error In Resolved Knowledge
 - **Input**: `patterns.jsonl` with invalid JSON
 - **Expected**: `validate_knowledge_base` returns `status=failed`, `parse_errors` populated
 
@@ -48,9 +48,13 @@
 - **Input**: `query="GEMM matrix multiply"`
 - **Expected**: Results include `gemm_like_patterns`
 
-### Test 11: Pattern Search with Category Filter
-- **Input**: `query="attention", category="attention_like_patterns"`
-- **Expected**: Results filtered to attention patterns
+### Test 11: Pattern Search with Capability Filter
+- **Input**: `query="attention", capability_id="attention_like_patterns"`
+- **Expected**: Results are filtered through `capability_map.related_patterns` and include attention patterns
+
+### Test 11b: Pattern Search with Category Filter
+- **Input**: `query="attention", category="attention"`
+- **Expected**: Results have an attention category
 
 ### Test 12: API Lookup
 - **Input**: `query="T.gemm"`

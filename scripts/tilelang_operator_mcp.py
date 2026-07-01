@@ -515,6 +515,7 @@ def normalize_device(args: dict[str, Any]) -> dict[str, Any]:
     suggested = target or None
     confidence = 0.4
     notes: list[str] = []
+    constrained_vendor = False
 
     if "nvidia" in combined or "cuda" in combined or re.search(r"\b(a100|h100|b100|rtx|sm_)", combined):
         vendor = "NVIDIA"
@@ -551,15 +552,41 @@ def normalize_device(args: dict[str, Any]) -> dict[str, Any]:
         vendor, suggested, confidence = "Apple", suggested or "metal", 0.65
     elif "webgpu" in combined:
         vendor, suggested, confidence = "WebGPU", suggested or "webgpu", 0.65
+    elif any(term in combined for term in ["huawei", "ascend", "cann", "昇腾", "升腾", "华为"]):
+        vendor, suggested, confidence, constrained_vendor = "Huawei Ascend", target or None, 0.35, True
+        notes.append("The main TileLang README references Ascend support through an external tilelang-ascend repository; provide that checkout or local backend evidence before using Ascend-specific targets.")
+    elif any(term in combined for term in ["metax", "muxi", "maca", "沐曦", "曦云"]):
+        vendor, suggested, confidence, constrained_vendor = "MetaX/Muxi", target or None, 0.35, True
+    elif any(term in combined for term in ["moore", "mtt", "musa", "摩尔", "摩尔线程"]):
+        vendor, suggested, confidence, constrained_vendor = "Moore Threads", target or None, 0.35, True
+    elif any(term in combined for term in ["cambricon", "mlu", "寒武纪"]):
+        vendor, suggested, confidence, constrained_vendor = "Cambricon", target or None, 0.35, True
+    elif any(term in combined for term in ["biren", "壁仞", "br100"]):
+        vendor, suggested, confidence, constrained_vendor = "Biren", target or None, 0.35, True
+    elif any(term in combined for term in ["iluvatar", "天数", "天数智芯", "bi-v"]):
+        vendor, suggested, confidence, constrained_vendor = "Iluvatar", target or None, 0.35, True
+    elif any(term in combined for term in ["kunlun", "昆仑", "昆仑芯"]) or (
+        "xpu" in combined and any(term in combined for term in ["baidu", "r200", "昆仑"])
+    ):
+        vendor, suggested, confidence, constrained_vendor = "Baidu Kunlun", target or None, 0.35, True
     else:
         notes.append("Device vendor/model could not be mapped to a known TileLang target family.")
 
+    if constrained_vendor:
+        notes.append(
+            "Vendor recognized, but this TileLang checkout has no verified backend evidence for this accelerator family. "
+            "Do not generate vendor-specific TileLang code or invent CANN/MUSA/MACA/MLU targets without user-supplied source and compiler evidence."
+        )
+
     if target:
-        notes.append("User supplied an explicit target/arch; preserve it unless repository evidence contradicts it.")
-        confidence = max(confidence, 0.75)
+        if constrained_vendor:
+            notes.append("User supplied an explicit target/arch; treat it as unverified until the local TileLang source proves backend support.")
+        else:
+            notes.append("User supplied an explicit target/arch; preserve it unless repository evidence contradicts it.")
+            confidence = max(confidence, 0.75)
 
     return {
-        "status": "passed" if vendor != "unknown" else "constrained",
+        "status": "passed" if vendor != "unknown" and not constrained_vendor else "constrained",
         "vendor": vendor,
         "model": model or None,
         "suggested_target": suggested,
@@ -1000,7 +1027,8 @@ def search_troubleshooting(args: dict[str, Any]) -> dict[str, Any]:
         # Score against query and error message
         search_query = query + " " + error_message
         score, match_details = score_record(rec, search_query, [
-            "title", "description", "error_patterns", "solution",
+            "title", "title_en", "description", "description_en",
+            "error_patterns", "solution", "solution_en", "example_fix_en",
             "category", "related_symbols", "issue_id"
         ])
 
@@ -1036,12 +1064,16 @@ def search_troubleshooting(args: dict[str, Any]) -> dict[str, Any]:
         results.append({
             "issue_id": rec.get("issue_id"),
             "title": rec.get("title"),
+            "title_en": rec.get("title_en"),
             "category": rec.get("category"),
             "severity": rec.get("severity"),
             "description": rec.get("description"),
+            "description_en": rec.get("description_en"),
             "error_patterns": rec.get("error_patterns"),
             "solution": rec.get("solution"),
+            "solution_en": rec.get("solution_en"),
             "example_fix": rec.get("example_fix"),
+            "example_fix_en": rec.get("example_fix_en"),
             "related_symbols": rec.get("related_symbols"),
             "evidence": rec.get("evidence"),
             "match_reason": rec.get("_match_reason"),
@@ -1073,6 +1105,12 @@ def validate_operator_code(args: dict[str, Any]) -> dict[str, Any]:
     warnings = []
     errors = []
     tree = None
+    constrained_target_terms = ("cann", "musa", "maca", "mlu", "xpu", "ascend", "muxi", "metax", "moore", "cambricon")
+    if any(term in target.lower() for term in constrained_target_terms):
+        warnings.append(
+            "Target appears to reference an accelerator backend that is not verified in the bundled TileLang knowledge. "
+            "Do not claim support unless local TileLang backend, compiler, runtime, and example evidence exists."
+        )
 
     import ast
 
@@ -1275,7 +1313,11 @@ def operator_development_wizard(args: dict[str, Any]) -> dict[str, Any]:
             "step_id": 3,
             "title": "Normalize Device Profile",
             "description": "Identify the target device and architecture",
-            "action_required": "Specify vendor (NVIDIA/AMD/CPU/Apple), model (A100/H100/MI300/etc.), and target",
+            "action_required": (
+                "Specify vendor, model, and target. NVIDIA/AMD/CPU/Apple/WebGPU can be normalized; "
+                "other accelerators such as Huawei Ascend, MetaX/Muxi, Moore Threads, Cambricon, "
+                "Biren, Iluvatar, or Kunlun are recognized only as constrained unless backend evidence is available."
+            ),
             "completion_criteria": "Device profile is normalized with confidence score",
             "tools_to_use": ["normalize_device_profile"]
         },
@@ -1450,18 +1492,18 @@ def tool_definitions() -> list[dict[str, Any]]:
     }
 
     return [
-        {"name": "inspect_tilelang_workspace", "description": "Validate TileLang repository and tilelang_knowledge presence. Supports dual-workspace mode for independent operator development.", "inputSchema": {"type": "object", "properties": base_props}},
-        {"name": "validate_knowledge_base", "description": "Validate required delivery files and parse JSON/JSONL.", "inputSchema": {"type": "object", "properties": base_props}},
-        {"name": "normalize_device_profile", "description": "Normalize vendor/model/target for device-aware TileLang operator planning.", "inputSchema": {"type": "object", "properties": {"vendor": {"type": "string"}, "model": {"type": "string"}, "target": {"type": "string"}, "arch": {"type": "string"}}}},
+        {"name": "inspect_tilelang_workspace", "description": "Validate an operator workspace, resolve the TileLang source repository, and report workspace-local or bundled knowledge availability.", "inputSchema": {"type": "object", "properties": base_props}},
+        {"name": "validate_knowledge_base", "description": "Validate the resolved workspace-local or bundled knowledge delivery files and parse JSON/JSONL records.", "inputSchema": {"type": "object", "properties": base_props}},
+        {"name": "normalize_device_profile", "description": "Normalize vendor/model/target for device-aware TileLang operator planning. Non-CUDA/HIP/CPU/Metal/WebGPU accelerator vendors are recognized only as constrained unless local backend evidence exists.", "inputSchema": {"type": "object", "properties": {"vendor": {"type": "string"}, "model": {"type": "string"}, "target": {"type": "string"}, "arch": {"type": "string"}}}},
         {"name": "search_capabilities", "description": "Search capability_map.json for operator capabilities.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "max_results": {"type": "integer"}}}},
-        {"name": "search_patterns", "description": "Search patterns.jsonl for operator implementation patterns.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "category": {"type": "string"}, "task_family": {"type": "string"}, "capability_id": {"type": "string"}, "max_results": {"type": "integer"}}}},
+        {"name": "search_patterns", "description": "Search patterns.jsonl for operator implementation patterns. capability_id filters through capability_map.related_patterns.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "category": {"type": "string"}, "task_family": {"type": "string"}, "capability_id": {"type": "string"}, "max_results": {"type": "integer"}}}},
         {"name": "search_usage_patterns", "description": "Search usage_patterns.jsonl for example workflows.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "pattern_id": {"type": "string"}, "symbols": {"type": "array", "items": {"type": "string"}}, "max_results": {"type": "integer"}}}},
         {"name": "lookup_apis", "description": "Search apis.jsonl for TileLang API symbols and signatures.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "symbols": {"type": "array", "items": {"type": "string"}}, "visibility": {"type": "string"}, "module": {"type": "string"}, "max_results": {"type": "integer"}}}},
         {"name": "get_source_chunks", "description": "Retrieve source fallback chunks from TileLang source.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "capability_id": {"type": "string"}, "pattern_id": {"type": "string"}, "symbols": {"type": "array", "items": {"type": "string"}}, "max_results": {"type": "integer"}}}},
         {"name": "trace_semantic_graph", "description": "Trace semantic graph nodes and edges.", "inputSchema": {"type": "object", "properties": {**base_props, "node_id": {"type": "string"}, "query": {"type": "string"}, "edge_type": {"type": "string"}, "max_results": {"type": "integer"}}}},
         {"name": "build_operator_retrieval_plan", "description": "Build a structured retrieval plan for an operator intent. Supports dual-workspace mode.", "inputSchema": {"type": "object", "properties": {**base_props, "operator_intent": {"type": "string"}, "device_profile": {"type": "object"}}}},
         {"name": "search_troubleshooting", "description": "Search troubleshooting knowledge base for common issues, errors, and solutions.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "error_message": {"type": "string", "description": "The actual error message to match"}, "category": {"type": "string", "description": "Issue category: compilation, runtime, performance, api, device, installation, pattern"}, "severity": {"type": "string", "description": "Issue severity: low, medium, high, critical"}, "max_results": {"type": "integer"}}}},
-        {"name": "validate_operator_code", "description": "Static analysis of TileLang operator code for syntax, structure, and common issues.", "inputSchema": {"type": "object", "properties": {"code": {"type": "string", "description": "The generated TileLang operator code to validate"}, "target": {"type": "string", "description": "Target device: cuda, hip, cpu, metal, webgpu"}, "run_static_check": {"type": "boolean", "description": "Whether to run Python AST syntax check"}}}},
+        {"name": "validate_operator_code", "description": "Static analysis of TileLang operator code for syntax, structure, and common issues.", "inputSchema": {"type": "object", "properties": {"code": {"type": "string", "description": "The generated TileLang operator code to validate"}, "target": {"type": "string", "description": "Target device: cuda, hip, cpu, metal, webgpu. Do not use CANN/MUSA/MACA/MLU or other vendor targets unless local TileLang backend evidence proves support."}, "run_static_check": {"type": "boolean", "description": "Whether to run Python AST syntax check"}}}},
         {"name": "operator_development_wizard", "description": "Step-by-step guided workflow for TileLang operator development from intent to validation. Supports dual-workspace mode.", "inputSchema": {"type": "object", "properties": {"current_step": {"type": "integer", "description": "Current step in the workflow (1-12)"}, "operator_intent": {"type": "string", "description": "Description of the operator to develop"}, "device_profile": {"type": "object", "description": "Device profile information"}, **base_props}}},
     ]
 

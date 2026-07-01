@@ -10,6 +10,19 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILL_NAME="tilelang-operator-dev"
 MCP_SERVER="$SCRIPT_DIR/scripts/tilelang_operator_mcp.py"
 MCP_CONFIG="$HOME/.claude/.mcp.json"
+PYTHON_BIN="${PYTHON:-python3}"
+
+"$PYTHON_BIN" - <<'PY'
+import sys
+
+if sys.version_info < (3, 10):
+    print(
+        "TileLang Operator Dev requires Python 3.10 or newer. "
+        "Set PYTHON=/path/to/python3.10 when running setup.sh.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+PY
 
 # Install the operator development skill globally.
 mkdir -p "$HOME/.claude/skills/$SKILL_NAME"
@@ -17,7 +30,7 @@ cp "$SCRIPT_DIR/SKILL.md" "$HOME/.claude/skills/$SKILL_NAME/SKILL.md"
 
 # Upsert MCP config globally without deleting other configured servers.
 mkdir -p "$HOME/.claude"
-MCP_CONFIG="$MCP_CONFIG" MCP_SERVER="$MCP_SERVER" python3 <<'PY'
+MCP_CONFIG="$MCP_CONFIG" MCP_SERVER="$MCP_SERVER" MCP_COMMAND="$PYTHON_BIN" "$PYTHON_BIN" <<'PY'
 import json
 import os
 import shutil
@@ -26,6 +39,7 @@ from pathlib import Path
 
 config_path = Path(os.environ["MCP_CONFIG"]).expanduser()
 mcp_server = os.environ["MCP_SERVER"]
+mcp_command = os.environ["MCP_COMMAND"]
 server_name = "tilelang-operator-knowledge"
 
 data = {}
@@ -46,7 +60,7 @@ if not isinstance(mcp_servers, dict):
     mcp_servers = {}
 data["mcpServers"] = mcp_servers
 mcp_servers[server_name] = {
-    "command": "python3",
+    "command": mcp_command,
     "args": [mcp_server],
 }
 
@@ -59,5 +73,6 @@ echo "Done!"
 echo "  Skill:     ~/.claude/skills/$SKILL_NAME/SKILL.md"
 echo "  MCP config: ~/.claude/.mcp.json"
 echo "  MCP server: $MCP_SERVER"
+echo "  Python:    $PYTHON_BIN"
 echo ""
 echo "Restart Claude Code to pick up the changes."

@@ -90,6 +90,9 @@ class TestServerInit:
         assert "inspect_tilelang_workspace" in names
         assert "normalize_device_profile" in names
         assert len(tools) >= 12  # At least original 10 + new tools
+        by_name = {t["name"]: t for t in tools}
+        assert "bundled knowledge" in by_name["inspect_tilelang_workspace"]["description"]
+        assert "capability_map.related_patterns" in by_name["search_patterns"]["description"]
 
 
 # --- Workspace validation ---
@@ -148,6 +151,39 @@ class TestDeviceNormalization:
         """Passing only model (not matching known patterns) gives low confidence."""
         result = get_tool_result("normalize_device_profile", {"model": "SomeUnknownChip"})
         assert result["confidence"] <= 0.5
+
+    @pytest.mark.parametrize("payload, expected_vendor", [
+        ({"vendor": "Huawei", "model": "Ascend 910B"}, "Huawei Ascend"),
+        ({"vendor": "华为", "model": "昇腾 910B"}, "Huawei Ascend"),
+        ({"vendor": "Muxi", "model": "C500"}, "MetaX/Muxi"),
+        ({"vendor": "沐曦", "model": "曦云 C500"}, "MetaX/Muxi"),
+        ({"vendor": "Moore Threads", "model": "MTT S80"}, "Moore Threads"),
+        ({"vendor": "摩尔线程", "model": "MTT S4000"}, "Moore Threads"),
+        ({"vendor": "Cambricon", "model": "MLU370"}, "Cambricon"),
+        ({"vendor": "Biren", "model": "BR100"}, "Biren"),
+        ({"vendor": "Iluvatar", "model": "BI-V100"}, "Iluvatar"),
+        ({"vendor": "Kunlun", "model": "XPU R200"}, "Baidu Kunlun"),
+    ])
+    def test_other_accelerator_vendors_are_recognized_as_constrained(self, payload, expected_vendor):
+        result = get_tool_result("normalize_device_profile", payload)
+        assert result["status"] == "constrained"
+        assert result["vendor"] == expected_vendor
+        assert result["suggested_target"] is None
+        assert result["confidence"] <= 0.4
+        assert any("no verified backend evidence" in note for note in result["uncertainty_notes"])
+
+    def test_other_accelerator_explicit_target_remains_constrained(self):
+        result = get_tool_result("normalize_device_profile", {
+            "vendor": "Huawei",
+            "model": "Ascend 910B",
+            "target": "cann",
+        })
+        assert result["status"] == "constrained"
+        assert result["vendor"] == "Huawei Ascend"
+        assert result["suggested_target"] == "cann"
+        assert result["confidence"] <= 0.4
+        assert any("treat it as unverified" in note for note in result["uncertainty_notes"])
+        assert any("tilelang-ascend" in note for note in result["uncertainty_notes"])
 
 
 # --- Knowledge base search ---
@@ -319,6 +355,16 @@ class TestSearchTroubleshooting:
         result = get_tool_result("search_troubleshooting", {"query": "dtype mismatch"})
         assert result["status"] == "passed"
         assert len(result["results"]) > 0
+        first = result["results"][0]
+        assert first["title_en"] == "TileLang compilation failed - dtype mismatch"
+        assert "Input tensor dtypes" in first["description_en"]
+        assert "Check that input tensor dtypes" in first["solution_en"]
+
+    def test_search_other_vendor_troubleshooting(self):
+        result = get_tool_result("search_troubleshooting", {"query": "Huawei Ascend CANN unsupported target"})
+        assert result["status"] == "passed"
+        assert result["results"][0]["issue_id"] == "DEVICE_003"
+        assert result["results"][0]["title_en"] == "Unsupported or unverified accelerator vendor target"
 
     def test_search_by_category(self):
         result = get_tool_result("search_troubleshooting", {"query": "", "category": "compilation"})
@@ -368,6 +414,20 @@ def gemm(A, B):
     def test_validate_empty_code(self):
         result = get_tool_result("validate_operator_code", {"code": ""})
         assert result["valid"] is False
+
+    def test_validate_constrained_vendor_target_warns(self):
+        code = """
+import tilelang
+import tilelang.language as T
+
+@tilelang.jit
+def gemm(A: T.Tensor((16, 16), "float32")):
+    return A
+"""
+        result = get_tool_result("validate_operator_code", {"code": code, "target": "cann"})
+        assert result["valid"] is True
+        assert result["status"] == "warnings"
+        assert any("not verified" in warning for warning in result["warnings"])
 
     def test_validate_syntax_error(self):
         code = """
@@ -597,6 +657,7 @@ class TestSetupScript:
 
         env = os.environ.copy()
         env["HOME"] = str(home)
+        env.pop("PYTHON", None)
         subprocess.run(
             ["bash", str(REPO_ROOT / "setup.sh")],
             cwd=REPO_ROOT,
@@ -610,11 +671,31 @@ class TestSetupScript:
         assert merged["otherConfig"] is True
         assert "existing-server" in merged["mcpServers"]
         assert "tilelang-operator-knowledge" in merged["mcpServers"]
+        assert merged["mcpServers"]["tilelang-operator-knowledge"]["command"] == "python3"
         assert merged["mcpServers"]["tilelang-operator-knowledge"]["args"] == [
             str(REPO_ROOT / "scripts" / "tilelang_operator_mcp.py")
         ]
         assert (home / ".claude" / "skills" / "tilelang-operator-dev" / "SKILL.md").is_file()
         assert list(claude_dir.glob(".mcp.json.bak.*"))
+
+    def test_setup_uses_configured_python_command(self, tmp_path):
+        home = tmp_path / "home"
+        env = os.environ.copy()
+        env["HOME"] = str(home)
+        env["PYTHON"] = sys.executable
+
+        subprocess.run(
+            ["bash", str(REPO_ROOT / "setup.sh")],
+            cwd=REPO_ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+
+        config_path = home / ".claude" / ".mcp.json"
+        merged = json.loads(config_path.read_text(encoding="utf-8"))
+        assert merged["mcpServers"]["tilelang-operator-knowledge"]["command"] == sys.executable
 
 
 # --- Dual-workspace mode tests ---
