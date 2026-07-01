@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - Added a troubleshooting record for unsupported or unverified accelerator vendor targets.
 
 ### Changed
+- Expanded English and Chinese README usage guidance with Claude Code startup commands, global and workspace-local setup flows, prompt structures, and expected Skill behavior.
 - Clarified in README and Skill instructions that non-CUDA/HIP/CPU/Metal/WebGPU accelerator targets must not be inferred without local TileLang backend evidence, with Huawei Ascend requiring external `tilelang-ascend` evidence when using the main TileLang checkout.
 - Added `validate_operator_code` warnings for unverified vendor targets such as CANN, MUSA, MACA, MLU, and XPU.
 

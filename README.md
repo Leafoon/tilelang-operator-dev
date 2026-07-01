@@ -49,6 +49,38 @@ git clone https://github.com/tile-ai/tilelang.git
 
 Replace `<workspace-root>` with any directory you control.
 
+## Quick Start
+
+The shortest recommended path is the global configuration mode. It keeps the full skill and MCP server in one checkout, while your operators live in a separate workspace.
+
+```bash
+mkdir -p <workspace-root>
+cd <workspace-root>
+
+git clone https://github.com/Leafoon/tilelang-operator-dev.git
+git clone https://github.com/tile-ai/tilelang.git
+mkdir -p my-operators
+
+cd tilelang-operator-dev
+bash setup.sh
+
+cd ../my-operators
+claude .
+```
+
+If your default `python3` is older than 3.10, run setup with an explicit interpreter:
+
+```bash
+cd <workspace-root>/tilelang-operator-dev
+PYTHON=/path/to/python3.10 bash setup.sh
+```
+
+Inside Claude Code, start with a direct request such as:
+
+```text
+Use the tilelang-operator-dev skill. Inspect this workspace, confirm TileLang source and knowledge availability, then create a retrieval plan for an fp16 GEMM operator on NVIDIA H100.
+```
+
 ## Configuration Modes
 
 ### Option A: Global Claude Code Configuration
@@ -59,6 +91,8 @@ Use this mode when you want Claude Code to discover the skill and MCP server fro
 cd <workspace-root>/tilelang-operator-dev
 bash setup.sh
 ```
+
+Use `PYTHON=/path/to/python3.10 bash setup.sh` if Claude Code should launch the MCP server with a specific Python interpreter.
 
 This installs or updates:
 
@@ -100,6 +134,12 @@ cd my-operators
 claude .
 ```
 
+Create a new operator directory from the template:
+
+```bash
+python init_operator.py --new-operator fused_moe_gemm
+```
+
 The template includes:
 
 - `.mcp.json`, pointing to `../tilelang-operator-dev/scripts/tilelang_operator_mcp.py`
@@ -126,6 +166,8 @@ Default workspace MCP config:
 
 This relative path assumes `my-operators` and `tilelang-operator-dev` are siblings. If your directories are arranged differently, replace it with an absolute path.
 
+To point the workspace at a non-sibling TileLang checkout, add `TILELANG_SOURCE_PATH` to the MCP server environment or pass `tilelang_source_path` in tool arguments when debugging MCP calls. For normal Claude Code use, the sibling `tilelang/` checkout or the environment variable is the least ambiguous setup.
+
 ## Source And Knowledge Resolution
 
 The MCP server resolves the TileLang source repository in this order:
@@ -142,9 +184,16 @@ The knowledge base resolves in this order:
 
 This keeps the operator workspace small and focused on custom operators.
 
-## Standard Claude Code Workflow
+## Using It In Claude Code
 
-Ask Claude Code for TileLang operator work from the operator workspace. The skill should validate and retrieve before writing code:
+Start Claude Code from the operator workspace, not from `tilelang-operator-dev`:
+
+```bash
+cd <workspace-root>/my-operators
+claude .
+```
+
+In Claude Code, you do not normally call MCP tools by hand. Ask for the operator task in natural language and mention `tilelang-operator-dev` when you want to force the skill to trigger. The skill should validate and retrieve before writing code:
 
 1. Validate workspace: `inspect_tilelang_workspace`
 2. Validate knowledge base: `validate_knowledge_base`
@@ -155,12 +204,87 @@ Ask Claude Code for TileLang operator work from the operator workspace. The skil
 7. Validate generated code
 8. Troubleshoot compile, runtime, or performance issues if needed
 
-Example prompts:
+The first answer should include a retrieval trace before implementation: operator workspace, TileLang source path, knowledge path, device profile, selected capability/pattern/usage records, API symbols, source fallback chunks, risks, and confidence.
+
+### Recommended Prompt Structure
+
+Use this structure for implementation requests:
+
+```text
+Use the tilelang-operator-dev skill.
+
+Task:
+- Build / adapt / explain / validate a TileLang operator.
+
+Operator:
+- Type: GEMM / grouped GEMM / attention / reduction / custom
+- Shapes: M=?, N=?, K=?, batch=?, heads=?, block sizes if known
+- Dtypes: input=?, accumulator=?, output=?
+- Layout: row-major / column-major / transposed / packed / sparse
+
+Hardware:
+- Vendor and model: NVIDIA H100 / A100 / AMD MI300X / CPU / ...
+- Target if known: cuda -arch=sm_90 / hip -mcpu=gfx942 / llvm / ...
+- Required features: WGMMA / TMA / cp.async / MFMA / none / unknown
+
+Constraints:
+- Correctness tolerance:
+- Performance goal:
+- Memory limit:
+- Must reuse or avoid:
+
+Existing material:
+- Paste current code, error logs, benchmark output, or say "from scratch".
+
+Expected output:
+- Retrieval trace first, then implementation plan, code, tests, and validation steps.
+```
+
+For troubleshooting, use this structure:
+
+```text
+Use the tilelang-operator-dev skill to debug this TileLang issue.
+
+Environment:
+- TileLang source path:
+- Python version:
+- GPU/CPU model and target:
+
+Command I ran:
+<paste command>
+
+Error:
+<paste full error log>
+
+Code:
+<paste relevant operator code>
+
+Expected:
+<what should have happened>
+```
+
+### Example Prompts
 
 - "Develop a basic fp16 GEMM operator for NVIDIA H100 in TileLang."
 - "Adapt this H100 TileLang kernel for A100 and explain the required scheduling changes."
 - "Validate this TileLang operator and identify likely correctness or performance issues."
 - "Walk me through a grouped GEMM operator for MoE-style workloads."
+- "Use tilelang-operator-dev to inspect this workspace and tell me whether the MCP knowledge base is available."
+- "Use tilelang-operator-dev to debug this dtype mismatch. Here is the full error log: ..."
+- "I want to target Huawei Ascend 910B. Check whether the local TileLang checkout provides backend evidence before proposing any CANN-specific code."
+
+### What Claude Code Should Do
+
+For code generation, a good response should:
+
+- show the retrieval trace before code;
+- explain which TileLang pattern and API records were selected;
+- state device confidence and unresolved hardware questions;
+- generate code only after the relevant API symbols are confirmed;
+- provide correctness tests and benchmark commands;
+- clearly separate verified behavior from assumptions.
+
+For unsupported or constrained hardware, such as Huawei Ascend without `tilelang-ascend` evidence, MetaX/Muxi, Moore Threads, Cambricon, Biren, Iluvatar, or Kunlun, a good response should not invent vendor targets. It should ask for backend/compiler evidence or fall back to architecture-neutral design guidance.
 
 ## MCP Tools
 

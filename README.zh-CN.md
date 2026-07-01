@@ -49,6 +49,38 @@ git clone https://github.com/tile-ai/tilelang.git
 
 请将 `<workspace-root>` 替换为你实际使用的任意本地目录。
 
+## 快速开始
+
+最推荐的起步方式是全局配置模式：完整 Skill 和 MCP 服务保留在 `tilelang-operator-dev` 仓库中，自定义算子放在独立工作区。
+
+```bash
+mkdir -p <workspace-root>
+cd <workspace-root>
+
+git clone https://github.com/Leafoon/tilelang-operator-dev.git
+git clone https://github.com/tile-ai/tilelang.git
+mkdir -p my-operators
+
+cd tilelang-operator-dev
+bash setup.sh
+
+cd ../my-operators
+claude .
+```
+
+如果默认 `python3` 低于 3.10，请显式指定 Python：
+
+```bash
+cd <workspace-root>/tilelang-operator-dev
+PYTHON=/path/to/python3.10 bash setup.sh
+```
+
+进入 Claude Code 后，可以从这样的问题开始：
+
+```text
+Use the tilelang-operator-dev skill. Inspect this workspace, confirm TileLang source and knowledge availability, then create a retrieval plan for an fp16 GEMM operator on NVIDIA H100.
+```
+
 ## 配置模式
 
 ### 方案 A：Claude Code 全局配置
@@ -59,6 +91,8 @@ git clone https://github.com/tile-ai/tilelang.git
 cd <workspace-root>/tilelang-operator-dev
 bash setup.sh
 ```
+
+如果希望 Claude Code 使用指定 Python 启动 MCP 服务，可以运行 `PYTHON=/path/to/python3.10 bash setup.sh`。
 
 该脚本会安装或更新：
 
@@ -100,6 +134,12 @@ cd my-operators
 claude .
 ```
 
+从模板创建新的算子目录：
+
+```bash
+python init_operator.py --new-operator fused_moe_gemm
+```
+
 模板包含：
 
 - `.mcp.json`，指向 `../tilelang-operator-dev/scripts/tilelang_operator_mcp.py`
@@ -126,6 +166,8 @@ claude .
 
 这个相对路径假设 `my-operators` 和 `tilelang-operator-dev` 是同级目录。如果你的目录结构不同，请改成绝对路径。
 
+如果 TileLang 官方仓库不在同级 `tilelang/` 目录下，可以在 MCP 配置中设置 `TILELANG_SOURCE_PATH`，或在调试 MCP 工具时显式传入 `tilelang_source_path`。日常 Claude Code 使用中，同级 `tilelang/` 或环境变量是最不容易产生歧义的配置方式。
+
 ## 源码和知识库解析规则
 
 MCP 服务按以下顺序解析 TileLang 源码仓库：
@@ -142,9 +184,16 @@ MCP 服务按以下顺序解析 TileLang 源码仓库：
 
 这样可以让算子工作区保持小而专注，只存放自定义算子。
 
-## Claude Code 标准流程
+## 在 Claude Code 中使用
 
-在算子工作区中向 Claude Code 提出 TileLang 算子需求。Skill 应该先验证和检索，再生成代码：
+请从算子工作区启动 Claude Code，而不是从 `tilelang-operator-dev` 仓库启动：
+
+```bash
+cd <workspace-root>/my-operators
+claude .
+```
+
+在 Claude Code 里，通常不需要手动调用 MCP 工具。你只需要用自然语言描述算子任务；如果希望明确触发该 Skill，可以在问题开头写 `Use the tilelang-operator-dev skill`。Skill 应该先验证和检索，再生成代码：
 
 1. 验证工作区：`inspect_tilelang_workspace`
 2. 验证知识库：`validate_knowledge_base`
@@ -155,12 +204,87 @@ MCP 服务按以下顺序解析 TileLang 源码仓库：
 7. 验证生成的代码
 8. 必要时排查编译、运行或性能问题
 
-示例提示：
+Claude Code 的第一轮有效回答应该先给出 retrieval trace，包括算子工作区、TileLang 源码路径、知识库路径、设备 profile、选中的 capability/pattern/usage 记录、API 符号、源码 fallback 片段、风险和置信度。
+
+### 推荐问题结构
+
+实现类问题建议这样写：
+
+```text
+Use the tilelang-operator-dev skill.
+
+Task:
+- Build / adapt / explain / validate a TileLang operator.
+
+Operator:
+- Type: GEMM / grouped GEMM / attention / reduction / custom
+- Shapes: M=?, N=?, K=?, batch=?, heads=?, block sizes if known
+- Dtypes: input=?, accumulator=?, output=?
+- Layout: row-major / column-major / transposed / packed / sparse
+
+Hardware:
+- Vendor and model: NVIDIA H100 / A100 / AMD MI300X / CPU / ...
+- Target if known: cuda -arch=sm_90 / hip -mcpu=gfx942 / llvm / ...
+- Required features: WGMMA / TMA / cp.async / MFMA / none / unknown
+
+Constraints:
+- Correctness tolerance:
+- Performance goal:
+- Memory limit:
+- Must reuse or avoid:
+
+Existing material:
+- Paste current code, error logs, benchmark output, or say "from scratch".
+
+Expected output:
+- Retrieval trace first, then implementation plan, code, tests, and validation steps.
+```
+
+排障类问题建议这样写：
+
+```text
+Use the tilelang-operator-dev skill to debug this TileLang issue.
+
+Environment:
+- TileLang source path:
+- Python version:
+- GPU/CPU model and target:
+
+Command I ran:
+<paste command>
+
+Error:
+<paste full error log>
+
+Code:
+<paste relevant operator code>
+
+Expected:
+<what should have happened>
+```
+
+### 示例提示
 
 - "Develop a basic fp16 GEMM operator for NVIDIA H100 in TileLang."
 - "Adapt this H100 TileLang kernel for A100 and explain the required scheduling changes."
 - "Validate this TileLang operator and identify likely correctness or performance issues."
 - "Walk me through a grouped GEMM operator for MoE-style workloads."
+- "Use tilelang-operator-dev to inspect this workspace and tell me whether the MCP knowledge base is available."
+- "Use tilelang-operator-dev to debug this dtype mismatch. Here is the full error log: ..."
+- "I want to target Huawei Ascend 910B. Check whether the local TileLang checkout provides backend evidence before proposing any CANN-specific code."
+
+### Claude Code 应该如何工作
+
+对于代码生成任务，比较合格的回答应当：
+
+- 先展示 retrieval trace，再写代码；
+- 说明选中了哪些 TileLang pattern 和 API 记录；
+- 给出设备置信度和未解决的硬件问题；
+- 只有在 API 符号被确认后才生成代码；
+- 给出正确性测试和 benchmark 命令；
+- 清楚区分已验证行为和假设。
+
+对于不确定或受限硬件，例如缺少 `tilelang-ascend` 证据的华为昇腾、沐曦、摩尔线程、寒武纪、壁仞、天数智芯或昆仑芯，回答不应臆造厂商 target，而应要求提供后端/编译器证据，或降级为架构无关的设计建议。
 
 ## MCP 工具
 
