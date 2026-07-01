@@ -3,7 +3,10 @@ import importlib.util
 import time
 from pathlib import Path
 
-import torch
+try:
+    import torch
+except ImportError:
+    torch = None
 
 try:
     from .operator import example_matrix_multiply
@@ -21,6 +24,10 @@ except ImportError:
 
 def benchmark_operator(M, N, K, iterations=100, warmup=10):
     """Benchmark the TileLang operator."""
+    if torch is None:
+        raise RuntimeError("PyTorch is required to run this benchmark.")
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA is required to run this benchmark.")
     A = torch.randn(M, K, device="cuda", dtype=torch.float16)
     B = torch.randn(K, N, device="cuda", dtype=torch.float16)
     C = torch.empty(M, N, device="cuda", dtype=torch.float16)
@@ -52,6 +59,10 @@ def benchmark_operator(M, N, K, iterations=100, warmup=10):
 
 def benchmark_reference(M, N, K, iterations=100, warmup=10):
     """Benchmark the reference implementation (cuBLAS)."""
+    if torch is None:
+        raise RuntimeError("PyTorch is required to run this benchmark.")
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA is required to run this benchmark.")
     A = torch.randn(M, K, device="cuda", dtype=torch.float16)
     B = torch.randn(K, N, device="cuda", dtype=torch.float16)
 

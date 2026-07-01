@@ -291,13 +291,13 @@ For unsupported or constrained hardware, such as Huawei Ascend without `tilelang
 | Tool | Purpose |
 |------|---------|
 | `inspect_tilelang_workspace` | Validate operator workspace, TileLang source, and knowledge availability |
-| `validate_knowledge_base` | Validate required delivery files and parse JSON/JSONL records |
+| `validate_knowledge_base` | Validate delivery files, parse JSON/JSONL records, and audit evidence paths against the resolved TileLang source when available |
 | `normalize_device_profile` | Normalize vendor/model/target information |
 | `search_capabilities` | Find matching operator capability categories |
 | `search_patterns` | Retrieve reusable implementation patterns; `capability_id` filters through `capability_map.related_patterns` |
 | `search_usage_patterns` | Retrieve compile, run, compare, and profile workflows |
 | `lookup_apis` | Confirm TileLang API signatures, modules, and visibility |
-| `get_source_chunks` | Retrieve focused source fallback chunks |
+| `get_source_chunks` | Retrieve focused source fallback chunks from the knowledge delivery |
 | `trace_semantic_graph` | Trace concepts, symbols, and pattern dependencies |
 | `build_operator_retrieval_plan` | Assemble a structured operator retrieval plan |
 | `search_troubleshooting` | Search known error patterns and fixes |

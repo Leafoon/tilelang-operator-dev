@@ -8,11 +8,19 @@ All notable changes to this project will be documented in this file.
 - Added constrained recognition for Huawei Ascend, MetaX/Muxi, Moore Threads, Cambricon, Biren, Iluvatar, and Baidu Kunlun device profiles.
 - Added English troubleshooting fields to `troubleshooting.jsonl` and exposed them through `search_troubleshooting`.
 - Added a troubleshooting record for unsupported or unverified accelerator vendor targets.
+- Added source evidence auditing to `validate_knowledge_base` when a valid TileLang checkout is resolved.
 
 ### Changed
 - Expanded English and Chinese README usage guidance with Claude Code startup commands, global and workspace-local setup flows, prompt structures, and expected Skill behavior.
 - Clarified in README and Skill instructions that non-CUDA/HIP/CPU/Metal/WebGPU accelerator targets must not be inferred without local TileLang backend evidence, with Huawei Ascend requiring external `tilelang-ascend` evidence when using the main TileLang checkout.
 - Added `validate_operator_code` warnings for unverified vendor targets such as CANN, MUSA, MACA, MLU, and XPU.
+- Included workspace/source/knowledge trace fields directly in `build_operator_retrieval_plan` output.
+- Reduced `SETUP_GUIDE.md` duplication so README remains the authoritative setup and usage guide.
+
+### Fixed
+- Kept `build_operator_retrieval_plan` constrained whenever device normalization is constrained.
+- Clarified `get_source_chunks` tool wording so it does not imply live source-file reads.
+- Made the operator template tests skip cleanly when PyTorch or CUDA is unavailable.
 
 ## [0.4.3] - 2026-07-01
 

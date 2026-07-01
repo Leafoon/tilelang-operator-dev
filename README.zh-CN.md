@@ -291,13 +291,13 @@ Expected:
 | 工具 | 用途 |
 |------|------|
 | `inspect_tilelang_workspace` | 验证算子工作区、TileLang 源码和知识库可用性 |
-| `validate_knowledge_base` | 验证交付文件并解析 JSON/JSONL 记录 |
+| `validate_knowledge_base` | 验证交付文件、解析 JSON/JSONL 记录，并在源码可用时审计 evidence 路径 |
 | `normalize_device_profile` | 规范化厂商、型号和目标后端 |
 | `search_capabilities` | 查找匹配的算子能力类别 |
 | `search_patterns` | 检索可复用实现模式；`capability_id` 会通过 `capability_map.related_patterns` 过滤 |
 | `search_usage_patterns` | 检索编译、运行、比对和性能测试流程 |
 | `lookup_apis` | 确认 TileLang API 签名、模块和可见性 |
-| `get_source_chunks` | 获取聚焦的源码回退片段 |
+| `get_source_chunks` | 从知识库交付内容中获取聚焦的源码回退片段 |
 | `trace_semantic_graph` | 追踪概念、符号和模式依赖 |
 | `build_operator_retrieval_plan` | 生成结构化算子检索计划 |
 | `search_troubleshooting` | 搜索已知错误模式和修复建议 |

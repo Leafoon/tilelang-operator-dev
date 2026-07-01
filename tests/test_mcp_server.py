@@ -93,6 +93,7 @@ class TestServerInit:
         by_name = {t["name"]: t for t in tools}
         assert "bundled knowledge" in by_name["inspect_tilelang_workspace"]["description"]
         assert "capability_map.related_patterns" in by_name["search_patterns"]["description"]
+        assert "resolved knowledge delivery" in by_name["get_source_chunks"]["description"]
 
 
 # --- Workspace validation ---
@@ -325,6 +326,20 @@ class TestBuildOperatorRetrievalPlan:
         assert len(result["capability_candidates"]) > 0
         assert len(result["pattern_candidates"]) > 0
         assert result["device_profile"]["vendor"] == "NVIDIA"
+        assert "operator_workspace_path" in result
+        assert "tilelang_source_path" in result
+        assert "workspace_mode" in result
+        assert "knowledge_path" in result
+        assert "knowledge_source" in result
+
+    def test_constrained_device_keeps_plan_constrained(self):
+        result = get_tool_result("build_operator_retrieval_plan", {
+            "operator_intent": "basic GEMM for Huawei Ascend 910B",
+            "device_profile": {"vendor": "Huawei", "model": "Ascend 910B", "target": "cann"},
+        })
+        assert result["status"] == "constrained"
+        assert result["device_profile"]["status"] == "constrained"
+        assert any("Device profile is constrained" in q for q in result["unresolved_questions"])
 
 
 # --- Error handling ---
@@ -496,6 +511,11 @@ class TestOperatorTemplate:
         assert "python benchmark.py" not in readme
         assert "python -m example_operator.benchmark" in readme
 
+    def test_example_operator_tests_skip_without_cuda(self):
+        test_file = (REPO_ROOT / "resources" / "operator_template" / "example_operator" / "test_operator.py").read_text(encoding="utf-8")
+        assert "pytest.importorskip(\"torch\")" in test_file
+        assert "torch.cuda.is_available()" in test_file
+
 
 class TestSkillEntrypoints:
     def test_operator_skill_entrypoints_are_in_sync(self):
@@ -586,6 +606,41 @@ class TestKnowledgeAuditScript:
         assert result["status"] == "failed"
         assert result["line_issue_count"] == 1
         assert result["line_issues"][0]["file_path"] == "examples/gemm/example.py"
+
+
+class TestKnowledgeBaseSourceAudit:
+    def test_validate_knowledge_base_fails_on_missing_source_evidence(self, tmp_path):
+        workspace = tmp_path / "operators"
+        source = tmp_path / "tilelang-source"
+        knowledge = workspace / "tilelang_knowledge"
+        workspace.mkdir()
+        knowledge.mkdir()
+        (source / "tilelang" / "language").mkdir(parents=True)
+        (source / "tilelang" / "__init__.py").write_text("", encoding="utf-8")
+        (source / "tilelang" / "language" / "__init__.py").write_text("", encoding="utf-8")
+        (source / "src" / "transform").mkdir(parents=True)
+        (source / "docs").mkdir()
+
+        for name in ["retrieval_plan.md", "semantic_graph.mmd", "README.md"]:
+            (knowledge / name).write_text("test\n", encoding="utf-8")
+        (knowledge / "capability_map.json").write_text(json.dumps({"capabilities": []}), encoding="utf-8")
+        (knowledge / "semantic_graph.json").write_text(json.dumps({"nodes": [], "edges": []}), encoding="utf-8")
+        (knowledge / "manifest.json").write_text(json.dumps({"repo_name": "tilelang"}), encoding="utf-8")
+        (knowledge / "patterns.jsonl").write_text(json.dumps({
+            "pattern_id": "pattern.bad",
+            "evidence": [{"file_path": "examples/missing.py", "line": 1}],
+        }) + "\n", encoding="utf-8")
+        for name in ["usage_patterns.jsonl", "apis.jsonl", "source_chunks.jsonl", "troubleshooting.jsonl"]:
+            (knowledge / name).write_text("", encoding="utf-8")
+
+        result = get_tool_result("validate_knowledge_base", {
+            "workspace_path": str(workspace),
+            "tilelang_source_path": str(source),
+        })
+        assert result["status"] == "failed"
+        assert result["source_audit"]["status"] == "failed"
+        assert result["source_audit"]["missing_reference_count"] == 1
+        assert result["source_audit"]["missing_references"][0]["file_path"] == "examples/missing.py"
 
 
 class TestOperatorDevelopmentWizard:

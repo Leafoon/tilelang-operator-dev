@@ -2,7 +2,13 @@
 import importlib.util
 from pathlib import Path
 
-import torch
+import pytest
+
+torch = pytest.importorskip("torch")
+pytestmark = pytest.mark.skipif(
+    not torch.cuda.is_available(),
+    reason="example_operator requires a CUDA runtime",
+)
 
 try:
     from .operator import example_matrix_multiply

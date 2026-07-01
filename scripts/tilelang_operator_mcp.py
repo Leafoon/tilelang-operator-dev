@@ -286,6 +286,129 @@ def parse_jsonl(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
     return records, errors
 
 
+def walk_reference_paths(value: Any, source: str, out: list[tuple[str, str]]) -> None:
+    """Collect source-relative paths from knowledge records."""
+    if isinstance(value, dict):
+        file_path = value.get("file_path")
+        if isinstance(file_path, str) and file_path:
+            out.append((file_path, source))
+        source_files = value.get("source_files")
+        if isinstance(source_files, list):
+            for path in source_files:
+                if isinstance(path, str) and path:
+                    out.append((path, source))
+        source_lines = value.get("source_lines")
+        if isinstance(source_lines, dict):
+            for path in source_lines:
+                if isinstance(path, str) and path:
+                    out.append((path, source))
+        for child in value.values():
+            walk_reference_paths(child, source, out)
+    elif isinstance(value, list):
+        for child in value:
+            walk_reference_paths(child, source, out)
+
+
+def walk_line_ranges(value: Any, source: str, out: list[tuple[str, str, int, int]]) -> None:
+    """Collect source-relative line ranges from knowledge records."""
+    if isinstance(value, dict):
+        file_path = value.get("file_path")
+        if isinstance(file_path, str) and file_path:
+            if "line" in value:
+                try:
+                    line = int(value["line"])
+                    out.append((file_path, source, line, line))
+                except Exception:
+                    out.append((file_path, source, 0, 0))
+            start_value = value.get("line_start") or value.get("start_line")
+            if start_value is not None:
+                try:
+                    start = int(start_value)
+                    end = int(value.get("line_end") or value.get("end_line") or start)
+                    out.append((file_path, source, start, end))
+                except Exception:
+                    out.append((file_path, source, 0, 0))
+        for child in value.values():
+            walk_line_ranges(child, source, out)
+    elif isinstance(value, list):
+        for child in value:
+            walk_line_ranges(child, source, out)
+
+
+def source_line_count(path: Path) -> int:
+    try:
+        return sum(1 for _ in path.open(encoding="utf-8", errors="ignore"))
+    except Exception:
+        return 0
+
+
+def audit_knowledge_references(kdir: Path, tilelang_source: Path) -> dict[str, Any]:
+    """Validate knowledge record source paths and line ranges against TileLang source."""
+    if not _is_valid_tilelang_repo(tilelang_source):
+        return {
+            "status": "skipped",
+            "reason": "TileLang source repository is not valid; run inspect_tilelang_workspace first.",
+            "tilelang_source_path": str(tilelang_source),
+        }
+
+    referenced_paths: list[tuple[str, str]] = []
+    line_ranges: list[tuple[str, str, int, int]] = []
+
+    for name in JSON_FILES:
+        path = kdir / name
+        if not path.is_file():
+            continue
+        obj, err = parse_json(path)
+        if err:
+            continue
+        walk_reference_paths(obj, name, referenced_paths)
+        walk_line_ranges(obj, name, line_ranges)
+
+    for name in JSONL_FILES:
+        path = kdir / name
+        if not path.is_file():
+            continue
+        records, errors = parse_jsonl(path)
+        if errors:
+            continue
+        for index, record in enumerate(records, 1):
+            source = f"{name}:{index}"
+            walk_reference_paths(record, source, referenced_paths)
+            walk_line_ranges(record, source, line_ranges)
+
+    missing_refs = [
+        {"file_path": rel_path, "source": source}
+        for rel_path, source in referenced_paths
+        if not (tilelang_source / rel_path).exists()
+    ]
+
+    line_issues = []
+    for rel_path, source, start, end in line_ranges:
+        full_path = tilelang_source / rel_path
+        if not full_path.exists():
+            continue
+        total = source_line_count(full_path)
+        if start < 1 or end < start or end > total:
+            line_issues.append({
+                "file_path": rel_path,
+                "source": source,
+                "start": start,
+                "end": end,
+                "total_lines": total,
+            })
+
+    status = "passed" if not missing_refs and not line_issues else "failed"
+    return {
+        "status": status,
+        "tilelang_source_path": str(tilelang_source),
+        "referenced_path_count": len({path for path, _ in referenced_paths}),
+        "missing_reference_count": len(missing_refs),
+        "missing_references": missing_refs[:50],
+        "line_issue_count": len(line_issues),
+        "line_issues": line_issues[:50],
+    }
+
+
 def validate_knowledge(args: dict[str, Any]) -> dict[str, Any]:
     operator_workspace = workspace_root(args.get("workspace_path"))
     tilelang_source = tilelang_source_root(operator_workspace, args.get("tilelang_source_path"))
@@ -298,6 +421,7 @@ def validate_knowledge(args: dict[str, Any]) -> dict[str, Any]:
     parse_errors: dict[str, Any] = {}
     counts: dict[str, int] = {}
     manifest_summary: dict[str, Any] = {}
+    source_audit: dict[str, Any] = {"status": "skipped", "reason": "Knowledge directory not available."}
 
     if kdir.is_dir():
         for name in JSON_FILES:
@@ -326,7 +450,10 @@ def validate_knowledge(args: dict[str, Any]) -> dict[str, Any]:
             elif name not in missing:
                 missing.append(name)
 
-    status = "passed" if not missing and not parse_errors else "failed"
+    if kdir.is_dir() and not missing and not parse_errors:
+        source_audit = audit_knowledge_references(kdir, tilelang_source)
+
+    status = "passed" if not missing and not parse_errors and source_audit.get("status") != "failed" else "failed"
     return {
         "status": status,
         "operator_workspace_path": str(operator_workspace),
@@ -336,6 +463,7 @@ def validate_knowledge(args: dict[str, Any]) -> dict[str, Any]:
         "knowledge_source": "builtin" if using_builtin else "workspace",
         "missing_files": [f"tilelang_knowledge/{p}" for p in missing],
         "parse_errors": parse_errors,
+        "source_audit": source_audit,
         "counts": counts,
         "manifest": manifest_summary,
     }
@@ -956,19 +1084,27 @@ def trace_semantic_graph(args: dict[str, Any]) -> dict[str, Any]:
 
 def build_operator_retrieval_plan(args: dict[str, Any]) -> dict[str, Any]:
     root = workspace_root(args.get("workspace_path"))
+    tilelang_source = tilelang_source_root(root, args.get("tilelang_source_path"))
+    kdir = knowledge_dir(root)
+    using_builtin = kdir == BUILTIN_KNOWLEDGE
+    is_dual_workspace = str(root) != str(tilelang_source)
     intent = normalize_text(args.get("operator_intent"))
     device = args.get("device_profile") or {}
     device_result = normalize_device(device if isinstance(device, dict) else {"model": normalize_text(device)})
-    caps = search_capabilities({"workspace_path": str(root), "query": intent, "max_results": 3})["results"]
+    common_args = {
+        "workspace_path": str(root),
+        "tilelang_source_path": str(tilelang_source),
+    }
+    caps = search_capabilities({**common_args, "query": intent, "max_results": 3})["results"]
     cap_id = caps[0]["capability_id"] if caps else ""
-    patterns = search_patterns({"workspace_path": str(root), "query": intent, "capability_id": cap_id, "max_results": 3})["results"]
+    patterns = search_patterns({**common_args, "query": intent, "capability_id": cap_id, "max_results": 3})["results"]
     pat_id = patterns[0]["pattern_id"] if patterns else ""
-    usages = search_usage_patterns({"workspace_path": str(root), "query": intent, "pattern_id": pat_id, "max_results": 3})["results"]
+    usages = search_usage_patterns({**common_args, "query": intent, "pattern_id": pat_id, "max_results": 3})["results"]
     symbols = []
     if patterns:
         symbols = patterns[0].get("required_symbols") or []
-    apis = lookup_apis({"workspace_path": str(root), "query": intent, "symbols": symbols, "max_results": 8})["results"]
-    chunks = get_source_chunks({"workspace_path": str(root), "query": intent, "capability_id": cap_id, "pattern_id": pat_id, "symbols": symbols, "max_results": 3})["results"]
+    apis = lookup_apis({**common_args, "query": intent, "symbols": symbols, "max_results": 8})["results"]
+    chunks = get_source_chunks({**common_args, "query": intent, "capability_id": cap_id, "pattern_id": pat_id, "symbols": symbols, "max_results": 3})["results"]
     unresolved = []
     if not caps:
         unresolved.append("No capability candidate found.")
@@ -976,16 +1112,26 @@ def build_operator_retrieval_plan(args: dict[str, Any]) -> dict[str, Any]:
         unresolved.append("No pattern candidate found.")
     if device_result["status"] == "constrained":
         unresolved.extend(device_result.get("uncertainty_notes", []))
+        unresolved.append("Device profile is constrained; do not generate target-specific code until backend support is verified.")
+    plan_status = "passed" if caps and patterns and device_result["status"] == "passed" else "constrained"
+    confidence_values = [x.get("confidence", 0.5) or 0.5 for x in caps[:1] + patterns[:1]]
+    if device_result["status"] == "constrained":
+        confidence_values.append(device_result.get("confidence", 0.4) or 0.4)
     return {
-        "status": "passed" if caps and patterns else "constrained",
+        "status": plan_status,
         "operator_intent": intent,
+        "operator_workspace_path": str(root),
+        "tilelang_source_path": str(tilelang_source),
+        "workspace_mode": "dual" if is_dual_workspace else "single",
+        "knowledge_path": str(kdir) if kdir.is_dir() else None,
+        "knowledge_source": "builtin" if using_builtin else "workspace",
         "device_profile": device_result,
         "capability_candidates": caps,
         "pattern_candidates": patterns,
         "usage_candidates": usages,
         "api_candidates": apis,
         "source_fallback_candidates": chunks,
-        "confidence": min([x.get("confidence", 0.5) or 0.5 for x in caps[:1] + patterns[:1]] or [0.4]),
+        "confidence": min(confidence_values or [0.4]),
         "unresolved_questions": unresolved,
     }
 
@@ -1499,7 +1645,7 @@ def tool_definitions() -> list[dict[str, Any]]:
         {"name": "search_patterns", "description": "Search patterns.jsonl for operator implementation patterns. capability_id filters through capability_map.related_patterns.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "category": {"type": "string"}, "task_family": {"type": "string"}, "capability_id": {"type": "string"}, "max_results": {"type": "integer"}}}},
         {"name": "search_usage_patterns", "description": "Search usage_patterns.jsonl for example workflows.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "pattern_id": {"type": "string"}, "symbols": {"type": "array", "items": {"type": "string"}}, "max_results": {"type": "integer"}}}},
         {"name": "lookup_apis", "description": "Search apis.jsonl for TileLang API symbols and signatures.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "symbols": {"type": "array", "items": {"type": "string"}}, "visibility": {"type": "string"}, "module": {"type": "string"}, "max_results": {"type": "integer"}}}},
-        {"name": "get_source_chunks", "description": "Retrieve source fallback chunks from TileLang source.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "capability_id": {"type": "string"}, "pattern_id": {"type": "string"}, "symbols": {"type": "array", "items": {"type": "string"}}, "max_results": {"type": "integer"}}}},
+        {"name": "get_source_chunks", "description": "Retrieve source fallback chunks from the resolved knowledge delivery; validate evidence paths against TileLang source with validate_knowledge_base.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "capability_id": {"type": "string"}, "pattern_id": {"type": "string"}, "symbols": {"type": "array", "items": {"type": "string"}}, "max_results": {"type": "integer"}}}},
         {"name": "trace_semantic_graph", "description": "Trace semantic graph nodes and edges.", "inputSchema": {"type": "object", "properties": {**base_props, "node_id": {"type": "string"}, "query": {"type": "string"}, "edge_type": {"type": "string"}, "max_results": {"type": "integer"}}}},
         {"name": "build_operator_retrieval_plan", "description": "Build a structured retrieval plan for an operator intent. Supports dual-workspace mode.", "inputSchema": {"type": "object", "properties": {**base_props, "operator_intent": {"type": "string"}, "device_profile": {"type": "object"}}}},
         {"name": "search_troubleshooting", "description": "Search troubleshooting knowledge base for common issues, errors, and solutions.", "inputSchema": {"type": "object", "properties": {**base_props, "query": {"type": "string"}, "error_message": {"type": "string", "description": "The actual error message to match"}, "category": {"type": "string", "description": "Issue category: compilation, runtime, performance, api, device, installation, pattern"}, "severity": {"type": "string", "description": "Issue severity: low, medium, high, critical"}, "max_results": {"type": "integer"}}}},
